@@ -1,7 +1,0 @@
-POST http://localhost:8080/v1/nesting/format
-Content-Type: application/json
-
-{
-  "code": "if (order.getStatus().equals(\"PENDING\") && order.getTotalPrice() >= 10000 && user.getMembershipLevel().equals(\"GOLD\") && region.equals(\"KR\") && order.getItemCount() > 3) {",
-  "maxWidth": 30
-}
