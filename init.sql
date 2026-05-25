@@ -16,6 +16,12 @@ CREATE TABLE IF NOT EXISTS users (
     xp                 INT         NOT NULL DEFAULT 0,
     streak_days        INT         NOT NULL DEFAULT 0,
     preferred_language VARCHAR(20) CHECK (preferred_language IN ('JAVA','PYTHON','C','JS')),
+
+    -- 온보딩 역량 정보 (추천 알고리즘용)
+    coding_level       VARCHAR(10)  NOT NULL DEFAULT 'NONE'
+    CHECK (coding_level IN ('NONE', 'SOME', 'LOTS')),
+    cote_prepared      BOOLEAN      NOT NULL DEFAULT FALSE,
+
     fcm_token          TEXT,
     created_at         TIMESTAMP   NOT NULL DEFAULT NOW(),
     updated_at         TIMESTAMP   NOT NULL DEFAULT NOW()
