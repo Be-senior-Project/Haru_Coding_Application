@@ -36,3 +36,12 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Environment Variables ###
+.env
+.env.local
+.env.*.local
+
+### Sensitive config ###
+src/main/resources/application.properties
+src/main/resources/application.properties.prod

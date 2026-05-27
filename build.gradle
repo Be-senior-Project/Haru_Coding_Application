@@ -30,6 +30,9 @@ dependencies {
 	// Validation (@Valid, @NotBlank 등)
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 
+	// JSONB 타입 지원 (hypersistence-utils)
+	implementation 'io.hypersistence:hypersistence-utils-hibernate-63:3.7.3'
+
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:postgresql'
 	annotationProcessor 'org.projectlombok:lombok'
@@ -40,9 +43,15 @@ dependencies {
 	testAnnotationProcessor 'org.projectlombok:lombok'
 
 	// LangChain4j, openAI, vectorDB 의존성
-	implementation 'dev.langchain4j:langchain4j-spring-boot-starter:1.0.1'
-	implementation 'dev.langchain4j:langchain4j-open-ai:1.0.1'
-	implementation 'dev.langchain4j:langchain4j-pgvector:1.0.1'
+//	implementation 'dev.langchain4j:langchain4j-spring-boot-starter:1.0.1'
+//	implementation 'dev.langchain4j:langchain4j-open-ai:1.0.1'
+//	implementation 'dev.langchain4j:langchain4j-pgvector:1.0.1'
+	implementation 'dev.langchain4j:langchain4j-spring-boot-starter:0.36.2'
+	implementation 'dev.langchain4j:langchain4j-open-ai:0.36.2'
+	implementation 'dev.langchain4j:langchain4j-pgvector:0.36.2'
+
+	//.env파일 로드
+	implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 }
 
 tasks.named('test') {
