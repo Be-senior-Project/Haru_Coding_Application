@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
     coding_level       VARCHAR(10)  NOT NULL DEFAULT 'NONE'
     CHECK (coding_level IN ('NONE', 'SOME', 'LOTS')),
     cote_prepared      BOOLEAN      NOT NULL DEFAULT FALSE,
+    recommended_difficulty VARCHAR(10),
 
     fcm_token          TEXT,
     created_at         TIMESTAMP   NOT NULL DEFAULT NOW(),
