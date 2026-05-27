@@ -1,5 +1,6 @@
 package com.besenior.harucoding.service;
 
+import com.besenior.harucoding.repository.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.besenior.harucoding.DTO.CategoryStatDto;
@@ -24,6 +25,7 @@ public class RecommendationService {
     private final PromptLoader promptLoader;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+    private final UserRepository userRepository;
 
     @Value("${openai.api.key}")
     private String openaiApiKey;
@@ -37,6 +39,7 @@ public class RecommendationService {
         int score = calcOnboardingScore(profile);
         String difficulty = scoreToDifficulty(score);
 
+        RecommendationFilterDto result;  // ← 변수로 먼저 받기
         try {
             Map<String, String> vars = PromptLoader.vars(
                     "coding_level",       profile.getCodingLevel(),
@@ -46,11 +49,23 @@ public class RecommendationService {
                             ? profile.getPreferredLanguage() : "미설정",
                     "score",              String.valueOf(score)
             );
-            return callGpt("onboarding", vars, "ai");
+            result = callGpt("onboarding", vars, "ai");
         } catch (Exception e) {
             log.warn("온보딩 AI 추천 실패, 규칙 기반 폴백: {}", e.getMessage());
-            return ruleBasedOnboarding(profile, difficulty);
+            result = ruleBasedOnboarding(profile, difficulty);
         }
+
+        // ← 추가: users 테이블에 저장
+        userRepository.findById(profile.getUserId()).ifPresent(user -> {
+            user.updateOnboarding(
+                    profile.getCodingLevel(),
+                    profile.isCotePrepared(),
+                    result.getDifficulty()
+            );
+            userRepository.save(user);
+        });
+
+        return result;
     }
 
     // ── 개인화 추천 (기존 유저) ────────────────────────────────────

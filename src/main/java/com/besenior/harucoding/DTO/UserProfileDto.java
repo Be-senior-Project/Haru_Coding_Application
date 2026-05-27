@@ -12,6 +12,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserProfileDto {
+    private Long userId;
     private String codingLevel;       // "LOTS", "SOME", "NONE"
     private boolean cotePrepared;
     private String preferredLanguage;

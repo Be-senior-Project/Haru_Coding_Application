@@ -48,6 +48,16 @@ public class User {
     // 팀원 ERD + init.sql에 있는 필드 추가
     private String preferredLanguage;
 
+    // 온보딩 역량 정보
+    @Column(length = 10)
+    private String codingLevel;         // NONE / SOME / LOTS
+
+    @Column
+    private boolean cotePrepared;
+
+    @Column(length = 10)
+    private String recommendedDifficulty;  // 추천 결과 저장
+
     private String fcmToken;
 
     @CreationTimestamp
@@ -73,9 +83,18 @@ public class User {
         this.streakDays = 0;
     }
 
-    public void updateProfile(String nickname, String preferredLanguage, String fcmToken) {
+    public void updateProfile(String nickname, String preferredLanguage, String fcmToken, String recommendedDifficulty) {
         if (nickname != null) this.nickname = nickname;
         if (preferredLanguage != null) this.preferredLanguage = preferredLanguage;
         if (fcmToken != null) this.fcmToken = fcmToken;
+        this.recommendedDifficulty = recommendedDifficulty;
+    }
+
+    public void updateOnboarding(String codingLevel,
+                                 boolean cotePrepared,
+                                 String recommendedDifficulty) {
+        this.codingLevel = codingLevel;
+        this.cotePrepared = cotePrepared;
+        this.recommendedDifficulty = recommendedDifficulty;
     }
 }
