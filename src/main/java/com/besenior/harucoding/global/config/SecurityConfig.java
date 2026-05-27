@@ -34,7 +34,8 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/topics",
                                 "/api/problem-sets/today",
-                                "/v1/nesting/**"
+                                "/v1/nesting/**",
+                                "/api/recommend/**"
                         ).permitAll()
                         // 나머지 전부 인증 필요
                         .anyRequest().authenticated()
