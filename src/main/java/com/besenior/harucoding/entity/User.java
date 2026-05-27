@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 @Table(name = "users")
 @Getter
 @NoArgsConstructor
+
 public class User {
 
     @Id
@@ -50,10 +51,10 @@ public class User {
 
     // 온보딩 역량 정보
     @Column(length = 10)
-    private String codingLevel;         // NONE / SOME / LOTS
+    private String codingLevel = "NONE";         // NONE / SOME / LOTS
 
     @Column
-    private boolean cotePrepared;
+    private boolean cotePrepared = false;
 
     @Column(length = 10)
     private String recommendedDifficulty;  // 추천 결과 저장
@@ -81,6 +82,8 @@ public class User {
         this.level = 1;
         this.xp = 0;
         this.streakDays = 0;
+        this.codingLevel = "NONE";
+        this.cotePrepared = false;
     }
 
     public void updateProfile(String nickname, String preferredLanguage, String fcmToken, String recommendedDifficulty) {
