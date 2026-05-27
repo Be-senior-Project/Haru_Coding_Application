@@ -39,7 +39,7 @@ public class RecommendationService {
         int score = calcOnboardingScore(profile);
         String difficulty = scoreToDifficulty(score);
 
-        RecommendationFilterDto result;  // ← 변수로 먼저 받기
+        RecommendationFilterDto tempResult;
         try {
             Map<String, String> vars = PromptLoader.vars(
                     "coding_level",       profile.getCodingLevel(),
@@ -49,11 +49,12 @@ public class RecommendationService {
                             ? profile.getPreferredLanguage() : "미설정",
                     "score",              String.valueOf(score)
             );
-            result = callGpt("onboarding", vars, "ai");
+            tempResult = callGpt("onboarding", vars, "ai");
         } catch (Exception e) {
             log.warn("온보딩 AI 추천 실패, 규칙 기반 폴백: {}", e.getMessage());
-            result = ruleBasedOnboarding(profile, difficulty);
+            tempResult = ruleBasedOnboarding(profile, difficulty);
         }
+        final RecommendationFilterDto result = tempResult;
 
         // ← 추가: users 테이블에 저장
         userRepository.findById(profile.getUserId()).ifPresent(user -> {

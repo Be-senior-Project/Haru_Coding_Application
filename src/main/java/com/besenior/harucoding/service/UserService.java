@@ -34,7 +34,7 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        user.updateProfile(request.getNickname(), request.getPreferredLanguage(), request.getFcmToken());
+        user.updateProfile(request.getNickname(), request.getPreferredLanguage(), request.getFcmToken(), null);
         userRepository.save(user);
 
         long totalSolved  = recordRepository.countTotalByUserId(userId);
