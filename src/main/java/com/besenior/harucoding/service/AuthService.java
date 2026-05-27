@@ -106,6 +106,7 @@ public class AuthService {
         String refreshToken = jwtProvider.generateRefreshToken(user.getId());
 
         refreshTokenRepository.deleteByUserId(user.getId());
+        refreshTokenRepository.flush();
         refreshTokenRepository.save(
                 RefreshToken.builder()
                         .userId(user.getId())
