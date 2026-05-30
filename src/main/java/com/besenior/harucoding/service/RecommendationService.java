@@ -167,24 +167,56 @@ public class RecommendationService {
     }
 
     private RecommendationFilterDto ruleBasedPersonalized(UserProfileDto profile) {
-        List<Integer> weakTopicIds = getWeakTopicIds(profile.getCategoryStats());
-        List<Integer> topicIds = weakTopicIds.isEmpty() ? List.of(1) : weakTopicIds;
-
+        // Level 1: 난이도 결정 (정답률 기반)
         double correctRate = profile.getTotalSolved() == 0 ? 0.0
                 : (double) profile.getCorrectCount() / profile.getTotalSolved();
-        String difficulty = correctRate >= 0.8 ? raiseDifficulty(
-                scoreToDifficulty(calcOnboardingScore(profile)))
-                : scoreToDifficulty(calcOnboardingScore(profile));
+        String baseDifficulty = scoreToDifficulty(calcOnboardingScore(profile));
+        String difficulty;
+        String reason;
+        if (correctRate >= 0.8) {
+            difficulty = raiseDifficulty(baseDifficulty);
+            reason = String.format("정답률 %.0f%%, 다음 단계로 도전해 보세요!", correctRate * 100);
+        } else if (correctRate >= 0.4) {
+            difficulty = baseDifficulty;
+            reason = String.format("정답률 %.0f%%, 꾸준히 풀어나가고 있어요!", correctRate * 100);
+        } else {
+            difficulty = lowerDifficulty(baseDifficulty);
+            reason = String.format("정답률 %.0f%%, 기초를 다시 다져볼까요?", correctRate * 100);
+        }
+
+        // Level 2: 토픽 우선순위 (약점 > 미탐색 > 강점)
+        List<CategoryStatDto> stats = profile.getCategoryStats();
+        List<Integer> topicIds;
+        String focusPoint;
+
+        List<Integer> weakTopicIds = getWeakTopicIds(stats);
+        if (!weakTopicIds.isEmpty()) {
+            topicIds = weakTopicIds;
+            focusPoint = "취약 카테고리 집중 보완";
+        } else {
+            List<Integer> unexploredTopicIds = getUnexploredTopicIds(stats);
+            if (!unexploredTopicIds.isEmpty()) {
+                topicIds = unexploredTopicIds;
+                focusPoint = "새로운 유형 탐색";
+            } else {
+                List<Integer> strongTopicIds = getStrongTopicIds(stats);
+                topicIds = strongTopicIds.isEmpty() ? List.of(1) : strongTopicIds;
+                focusPoint = "강점 유형 복습";
+            }
+        }
+
+        // Level 3: 유형 필터 (가장 많이 틀린 유형)
+        String type = getMostWrongType(stats);
 
         return RecommendationFilterDto.builder()
                 .difficulty(difficulty)
                 .topicIds(topicIds)
-                .type("객관식")
+                .type(type)
                 .style("일반")
                 .language(profile.getPreferredLanguage() != null
                         ? profile.getPreferredLanguage() : "COMMON")
-                .reason(String.format("정답률 %.0f%%, 꾸준히 풀어나가고 있어요!", correctRate * 100))
-                .focusPoint("취약 카테고리 집중 보완")
+                .reason(reason)
+                .focusPoint(focusPoint)
                 .method("rule_based")
                 .build();
     }
@@ -216,11 +248,28 @@ public class RecommendationService {
         };
     }
 
+    private String lowerDifficulty(String current) {
+        return switch (current) {
+            case "초급" -> "입문";
+            case "중급" -> "초급";
+            case "고급" -> "중급";
+            default     -> current;
+        };
+    }
+
     // ── 유틸 ───────────────────────────────────────────────────────
     private List<Integer> getWeakTopicIds(List<CategoryStatDto> stats) {
         if (stats == null) return List.of();
         return stats.stream()
                 .filter(s -> s.getTotalSolved() >= 3 && s.getCorrectRate() < 0.5)
+                .map(CategoryStatDto::getTopicId)
+                .collect(Collectors.toList());
+    }
+
+    private List<Integer> getUnexploredTopicIds(List<CategoryStatDto> stats) {
+        if (stats == null) return List.of();
+        return stats.stream()
+                .filter(s -> s.getTotalSolved() == 0)
                 .map(CategoryStatDto::getTopicId)
                 .collect(Collectors.toList());
     }
@@ -231,6 +280,17 @@ public class RecommendationService {
                 .filter(s -> s.getTotalSolved() >= 3 && s.getCorrectRate() >= 0.8)
                 .map(CategoryStatDto::getTopicId)
                 .collect(Collectors.toList());
+    }
+
+    private String getMostWrongType(List<CategoryStatDto> stats) {
+        if (stats == null || stats.isEmpty()) return "객관식";
+        // CategoryStatDto에 questionType 필드 추가 시 .map(s -> s.getQuestionType())으로 교체
+        return stats.stream()
+                .filter(s -> s.getTotalSolved() > 0)
+                .max(Comparator.comparingInt(s -> s.getTotalSolved() - s.getCorrectCount()))
+                .filter(s -> s.getTotalSolved() - s.getCorrectCount() > 0)
+                .map(s -> "객관식")
+                .orElse("객관식");
     }
 
     private String formatCategoryStats(List<CategoryStatDto> stats) {
