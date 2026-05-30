@@ -35,3 +35,5 @@ Category performance:
 - Strong category topic_ids: {{strong_topic_ids}}
 
 Analyze this user's learning profile and recommend the most beneficial next problems.
+
+반드시 한국어로 응답하세요. reason과 focus_point는 한 문장으로 간결하게 작성하세요.

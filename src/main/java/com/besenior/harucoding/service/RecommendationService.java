@@ -7,10 +7,14 @@ import com.besenior.harucoding.DTO.CategoryStatDto;
 import com.besenior.harucoding.DTO.RecommendationFilterDto;
 import com.besenior.harucoding.DTO.UserProfileDto;
 import com.besenior.harucoding.global.util.PromptLoader;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.http.*;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -33,6 +37,27 @@ public class RecommendationService {
     private static final String OPENAI_URL = "https://api.openai.com/v1/chat/completions";
     private static final String GPT_MODEL = "gpt-4o-mini";
     private static final int AI_THRESHOLD = 10; // 이 문제 수 이상이면 AI 추천
+
+    @PostConstruct
+    public void init() {
+        log.info("OpenAI Key 앞 10자리: {}",
+                openaiApiKey != null ? openaiApiKey.substring(0, Math.min(10, openaiApiKey.length())) : "NULL");
+    }
+
+    @Component
+    public class EnvCheck {
+
+        @Autowired
+        private Environment env;
+
+        @PostConstruct
+        public void check() {
+            System.out.println("=== 범인 찾기 ===");
+            System.out.println("1. OS 환경변수: " + System.getenv("OPEN_AI_API"));
+            System.out.println("2. 스프링 설정: " + env.getProperty("OPEN_AI_API"));
+            System.out.println("=================");
+        }
+    }
 
     // ── 온보딩 추천 (신규 유저) ────────────────────────────────────
     public RecommendationFilterDto recommendOnboarding(UserProfileDto profile) {
