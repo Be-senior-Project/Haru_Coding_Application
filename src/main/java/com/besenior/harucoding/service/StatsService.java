@@ -66,7 +66,7 @@ public class StatsService {
                 .map(r -> StatsResponse.RecentRecord.builder()
                         .problemId(r.getProblem().getId())
                         .problemTitle(r.getProblem().getTitle())
-                        .topic(r.getProblem().getTopic().getName())
+                        .topic(r.getProblem().getCategory())
                         .isCorrect(r.isCorrect())
                         .solvedAt(r.getSolvedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
                         .build())

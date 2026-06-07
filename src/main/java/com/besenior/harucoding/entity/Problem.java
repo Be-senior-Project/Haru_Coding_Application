@@ -1,7 +1,5 @@
 package com.besenior.harucoding.entity;
 
-import com.besenior.harucoding.global.enums.DifficultyLevel;
-import com.besenior.harucoding.global.enums.ProblemStyle;
 import com.besenior.harucoding.global.enums.ProblemType;
 import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
@@ -13,6 +11,7 @@ import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Entity
 @Table(name = "problems")
@@ -24,50 +23,45 @@ public class Problem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "topic_id", nullable = false)
-    private Topic topic;
+    // seed의 "Set Id" (예: SET-BI-01) — set 테이블과의 느슨한 연결용
+    @Column(name = "set_id")
+    private String setId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ProblemType type;
 
-    @Enumerated(EnumType.STRING)
+    // 분류 (seed의 set 단위 정보를 문제 행에 보존)
     @Column(nullable = false)
-    private DifficultyLevel difficulty;
+    private String category;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private ProblemStyle style;
+    private String subcategory;
 
     @Column(nullable = false)
-    private String language = "COMMON";
+    private int difficulty;   // 0, 1, 2
+
+    @Column(nullable = false)
+    private String language;   // Python, Java, C++
 
     @Column(nullable = false)
     private String title;
 
     @Column(nullable = false, columnDefinition = "TEXT")
-    private String question;
-
-    @Column(columnDefinition = "TEXT")
-    private String code;
+    private String description;
 
     @Type(JsonBinaryType.class)
     @Column(columnDefinition = "jsonb")
-    private List<String> options;
+    private List<String> constraints;
 
+    // IO Example: {"input": "...", "output": "..."}
     @Type(JsonBinaryType.class)
-    @Column(columnDefinition = "jsonb")
-    private List<String> blanks;
+    @Column(name = "io_example", columnDefinition = "jsonb")
+    private Map<String, String> ioExample;
 
-    @Type(JsonBinaryType.class)
-    @Column(name = "match_left", columnDefinition = "jsonb")
-    private List<String> matchLeft;
+    @Column(name = "code_skeleton", columnDefinition = "TEXT")
+    private String codeSkeleton;
 
-    @Type(JsonBinaryType.class)
-    @Column(name = "match_right", columnDefinition = "jsonb")
-    private List<String> matchRight;
-
+    // Answer는 문자열(Implementation/Debugging) 또는 문자열 배열(Fill-in-the-blank)
     @Type(JsonBinaryType.class)
     @Column(nullable = false, columnDefinition = "jsonb")
     private Object answer;
@@ -75,40 +69,33 @@ public class Problem {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String explanation;
 
-    private String generationModel;
-    private String embeddingModel;
-
-    // pgvector - String으로 받아서 DB에 vector 타입으로 저장
-    @Column(columnDefinition = "vector(1536)")
-    private String embedding;
+    // seed의 set 단위 "Concept Explanation" 보존
+    @Column(name = "concept_explanation", columnDefinition = "TEXT")
+    private String conceptExplanation;
 
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
     @Builder
-    public Problem(Topic topic, ProblemType type, DifficultyLevel difficulty,
-                   ProblemStyle style, String language, String title,
-                   String question, String code, List<String> options,
-                   List<String> blanks, List<String> matchLeft, List<String> matchRight,
-                   Object answer, String explanation,
-                   String generationModel, String embeddingModel, String embedding) {
-        this.topic = topic;
+    public Problem(String setId, ProblemType type, String category, String subcategory,
+                   int difficulty, String language, String title, String description,
+                   List<String> constraints, Map<String, String> ioExample,
+                   String codeSkeleton, Object answer, String explanation,
+                   String conceptExplanation) {
+        this.setId = setId;
         this.type = type;
+        this.category = category;
+        this.subcategory = subcategory;
         this.difficulty = difficulty;
-        this.style = style;
-        this.language = language != null ? language : "COMMON";
+        this.language = language;
         this.title = title;
-        this.question = question;
-        this.code = code;
-        this.options = options;
-        this.blanks = blanks;
-        this.matchLeft = matchLeft;
-        this.matchRight = matchRight;
+        this.description = description;
+        this.constraints = constraints;
+        this.ioExample = ioExample;
+        this.codeSkeleton = codeSkeleton;
         this.answer = answer;
         this.explanation = explanation;
-        this.generationModel = generationModel;
-        this.embeddingModel = embeddingModel;
-        this.embedding = embedding;
+        this.conceptExplanation = conceptExplanation;
     }
 }

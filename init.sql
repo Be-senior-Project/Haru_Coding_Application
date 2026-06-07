@@ -64,34 +64,32 @@ INSERT INTO topics (name, description, icon) VALUES
 
 
 CREATE TABLE IF NOT EXISTS problems (
-                                        id               BIGSERIAL PRIMARY KEY,
-                                        topic_id         BIGINT          NOT NULL REFERENCES topics(id),
-    type             VARCHAR(30)     NOT NULL,
-    difficulty       VARCHAR(10)     NOT NULL,
-    style            VARCHAR(30)     NOT NULL,
-    language         VARCHAR(20)     NOT NULL DEFAULT 'COMMON'
-    CHECK (language IN ('JAVA','PYTHON','C','JS','COMMON')),
-    title            VARCHAR(255)    NOT NULL,
-    question         TEXT            NOT NULL,
-    code             TEXT,
-    options          JSONB,           -- 객관식 보기
-    blanks           JSONB,           -- 빈칸 라벨 목록
-    match_left       JSONB,           -- 매칭 왼쪽
-    match_right      JSONB,           -- 매칭 오른쪽
-    answer           JSONB           NOT NULL,
-    explanation      TEXT            NOT NULL,
-    generation_model VARCHAR(100),    -- 생성에 쓴 LLM 모델명
-    embedding_model  VARCHAR(100),    -- 임베딩 모델명
-    embedding        VECTOR(1536),    -- pgvector
-    created_at       TIMESTAMP       NOT NULL DEFAULT NOW()
+                                        id                  BIGSERIAL PRIMARY KEY,
+                                        set_id              VARCHAR(50),                 -- seed의 "Set Id" (예: SET-BI-01)
+    type                VARCHAR(30)     NOT NULL
+        CHECK (type IN ('IMPLEMENTATION','DEBUGGING','FILL_IN_THE_BLANK')),
+    category            VARCHAR(100)    NOT NULL,                     -- seed의 Category
+    subcategory         VARCHAR(100),                                -- seed의 Subcategory (nullable)
+    difficulty          INT             NOT NULL CHECK (difficulty IN (0,1,2)),
+    language            VARCHAR(20)     NOT NULL
+        CHECK (language IN ('Python','Java','C++')),
+    title               VARCHAR(255)    NOT NULL,
+    description         TEXT            NOT NULL,
+    constraints         JSONB,                                       -- 제약 조건 목록 (문자열 배열)
+    io_example          JSONB,                                       -- {"input": "...", "output": "..."}
+    code_skeleton       TEXT,                                        -- 코드 스켈레톤
+    answer              JSONB           NOT NULL,                    -- 문자열 또는 문자열 배열
+    explanation         TEXT            NOT NULL,
+    concept_explanation TEXT,                                        -- seed의 set 단위 개념 설명
+    created_at          TIMESTAMP       NOT NULL DEFAULT NOW()
     );
 
-CREATE INDEX IF NOT EXISTS idx_problems_embedding
-    ON problems USING hnsw (embedding vector_cosine_ops);
-CREATE INDEX IF NOT EXISTS idx_problems_topic
-    ON problems(topic_id);
 CREATE INDEX IF NOT EXISTS idx_problems_difficulty
     ON problems(difficulty);
+CREATE INDEX IF NOT EXISTS idx_problems_category
+    ON problems(category);
+CREATE INDEX IF NOT EXISTS idx_problems_set
+    ON problems(set_id);
 
 -- ────────────────────────────────────────────
 -- 5. problem_sets (하루 1세트)
