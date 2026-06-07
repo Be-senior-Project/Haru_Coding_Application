@@ -23,14 +23,4 @@ public class RecommendationController {
             @RequestBody UserProfileDto profile) {
         return ResponseEntity.ok(recommendationService.recommendOnboarding(profile));
     }
-
-    /**
-     * 기존 유저 개인화 추천
-     * 메인 화면 진입 시 호출 — 풀이 이력 + 카테고리 성취도 기반
-     */
-    @PostMapping("/personalized")
-    public ResponseEntity<RecommendationFilterDto> personalized(
-            @RequestBody UserProfileDto profile) {
-        return ResponseEntity.ok(recommendationService.recommendPersonalized(profile));
-    }
 }
