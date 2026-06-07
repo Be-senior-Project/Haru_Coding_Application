@@ -92,6 +92,18 @@ CREATE INDEX IF NOT EXISTS idx_problems_set
     ON problems(set_id);
 
 -- ────────────────────────────────────────────
+-- 4-1. problem_embeddings (추천용 임베딩 - problems와 분리)
+-- ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS problem_embeddings (
+    problem_id BIGINT       PRIMARY KEY REFERENCES problems(id) ON DELETE CASCADE,
+    embedding  VECTOR(1536) NOT NULL,
+    created_at TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_problem_embeddings_vec
+    ON problem_embeddings USING hnsw (embedding vector_cosine_ops);
+
+-- ────────────────────────────────────────────
 -- 5. problem_sets (하루 1세트)
 -- ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS problem_sets (
