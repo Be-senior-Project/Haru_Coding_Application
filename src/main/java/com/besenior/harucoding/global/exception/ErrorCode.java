@@ -18,7 +18,10 @@ public enum ErrorCode {
 
     // 문제 세트
     PROBLEM_SET_NOT_FOUND(HttpStatus.NOT_FOUND,   "오늘의 문제 세트가 준비되지 않았습니다."),
-    ALREADY_SUBMITTED    (HttpStatus.CONFLICT,     "이미 제출한 세트입니다.");
+    ALREADY_SUBMITTED    (HttpStatus.CONFLICT,     "이미 제출한 세트입니다."),
+
+    // 문제
+    PROBLEM_NOT_FOUND    (HttpStatus.NOT_FOUND,    "문제를 찾을 수 없습니다.");
 
     private final HttpStatus status;
     private final String message;

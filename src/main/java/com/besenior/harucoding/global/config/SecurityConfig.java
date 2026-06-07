@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -37,6 +38,8 @@ public class SecurityConfig {
                                 "/v1/nesting/**",
                                 "/api/recommend/**"
                         ).permitAll()
+                        // 문제 조회(GET)는 공개, 풀이 제출(POST)은 인증 필요
+                        .requestMatchers(HttpMethod.GET, "/api/problems", "/api/problems/**").permitAll()
                         // 나머지 전부 인증 필요
                         .anyRequest().authenticated()
                 )
