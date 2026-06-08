@@ -30,6 +30,7 @@ public class ProblemSetService {
     private final UserStreakLogRepository streakLogRepository;
     private final UserCategoryStatRepository categoryStatRepository;
     private final UserXpLogRepository xpLogRepository;
+    private final TopicRepository topicRepository;
 
     private static final int XP_PER_CORRECT = 10;
     private static final int XP_STREAK_BONUS = 5;
@@ -78,11 +79,14 @@ public class ProblemSetService {
                     .xpEarned(isCorrect ? XP_PER_CORRECT : 0)
                     .build());
 
-            // 카테고리 통계 업데이트
+            // 카테고리 통계 업데이트 (problem.category 문자열 → Topic 매핑, 없으면 생성)
+            Topic topic = topicRepository.findByName(problem.getCategory())
+                    .orElseGet(() -> topicRepository.save(
+                            Topic.builder().name(problem.getCategory()).build()));
             UserCategoryStat stat = categoryStatRepository
-                    .findByUserIdAndTopicId(userId, problem.getTopic().getId())
+                    .findByUserIdAndTopicId(userId, topic.getId())
                     .orElseGet(() -> UserCategoryStat.builder()
-                            .user(user).topic(problem.getTopic()).build());
+                            .user(user).topic(topic).build());
             stat.recordResult(isCorrect);
             categoryStatRepository.save(stat);
 

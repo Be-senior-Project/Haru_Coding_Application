@@ -15,7 +15,6 @@ public interface ProblemSetRepository extends JpaRepository<ProblemSet, Long> {
         SELECT ps FROM ProblemSet ps
         LEFT JOIN FETCH ps.items psi
         LEFT JOIN FETCH psi.problem p
-        LEFT JOIN FETCH p.topic
         WHERE ps.targetDate = :date
         """)
     Optional<ProblemSet> findByTargetDateWithItems(@Param("date") LocalDate date);
@@ -24,7 +23,6 @@ public interface ProblemSetRepository extends JpaRepository<ProblemSet, Long> {
         SELECT ps FROM ProblemSet ps
         LEFT JOIN FETCH ps.items psi
         LEFT JOIN FETCH psi.problem p
-        LEFT JOIN FETCH p.topic
         WHERE ps.id = :id
         """)
     Optional<ProblemSet> findByIdWithItems(@Param("id") Long id);
