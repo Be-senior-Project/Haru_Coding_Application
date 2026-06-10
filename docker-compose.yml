@@ -31,8 +31,7 @@ services:
     # 나머지 비밀값(OPENAI_API_KEY, ENCRYPTION_SECRET_KEY, GOOGLE 등)은 호스트 .env를 마운트해 그대로 사용.
     # 비밀값은 compose가 호스트 .env에서 읽어 컨테이너 환경변수로 주입(파일 마운트 X).
     environment:
-      # stringtype=unspecified: 문자열을 unknown으로 보내 Postgres가 vector(1536)로 캐스팅하게 함
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/HaruCoding?stringtype=unspecified
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/HaruCoding
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: root1212
       OPENAI_API_KEY: ${OPENAI_API_KEY}

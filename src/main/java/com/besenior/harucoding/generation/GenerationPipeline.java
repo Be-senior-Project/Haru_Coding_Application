@@ -4,7 +4,6 @@ import com.besenior.harucoding.entity.Problem;
 import com.besenior.harucoding.generation.verify.CodeVerifier;
 import com.besenior.harucoding.generation.verify.VerifyResult;
 import com.besenior.harucoding.global.enums.ProblemType;
-import com.besenior.harucoding.repository.ProblemEmbeddingRepository;
 import com.besenior.harucoding.repository.ProblemRepository;
 import com.besenior.harucoding.service.ProblemEmbeddingService;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -39,7 +38,6 @@ public class GenerationPipeline {
     private final CodeVerifier codeVerifier;
     private final ProblemEmbeddingService embeddingService;
     private final ProblemRepository problemRepository;
-    private final ProblemEmbeddingRepository embeddingRepository;
     private final ObjectMapper objectMapper;
 
     private static final int MAX_RETRIES = 3;
@@ -71,7 +69,7 @@ public class GenerationPipeline {
                 }
                 Problem problem = problemRepository.save(
                         toProblem(pNode, category, subcategory, difficulty, language, concept, setId));
-                embeddingRepository.save(embeddingService.createEmbedding(problem));
+                embeddingService.saveEmbedding(problem);
                 saved.add(problem);
             }
 
@@ -99,9 +97,12 @@ public class GenerationPipeline {
         JsonNode out = ioNode.path("output");
         io.put("output", out.isTextual() ? out.asText() : out.toString());
 
+        // answer는 jsonb. 배열(빈칸)은 List로, 비배열(코드 문자열)은 JsonNode.toString()으로
+        // 따옴표 포함 valid JSON 텍스트로 저장한다. (hypersistence가 String을 raw json으로 취급하므로
+        // asText()의 raw 코드 문자열은 jsonb 파싱에 실패함)
         Object answer = p.path("Answer").isArray()
                 ? objectMapper.convertValue(p.path("Answer"), new TypeReference<List<String>>() {})
-                : p.path("Answer").asText();
+                : p.path("Answer").toString();
 
         String codeSkeleton = p.hasNonNull("Code Skeleton") ? p.get("Code Skeleton").asText() : null;
 

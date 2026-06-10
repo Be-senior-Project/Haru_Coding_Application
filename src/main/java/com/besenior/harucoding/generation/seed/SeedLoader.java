@@ -71,15 +71,17 @@ public class SeedLoader implements ApplicationRunner {
 
                 String embedding = embeddingService.embed(buildEmbedText(concept, category, subcategory));
 
-                seedSetRepository.save(SeedSet.builder()
+                // jsonb 컬럼은 엔티티로 저장(벡터는 null로 두고), 벡터는 명시적 CAST로 갱신
+                SeedSet seed = seedSetRepository.save(SeedSet.builder()
                         .category(category)
                         .subcategory(subcategory)
                         .difficulty(difficulty)
                         .language(language)
                         .conceptExplanation(concept)
                         .problems(problems)
-                        .embedding(embedding)
+                        .embedding(null)
                         .build());
+                seedSetRepository.updateEmbedding(seed.getId(), embedding);
                 loaded++;
                 if (loaded % 50 == 0) log.info("시드 적재 진행: {}건...", loaded);
             }

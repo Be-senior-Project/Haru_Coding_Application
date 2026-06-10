@@ -1,12 +1,20 @@
 package com.besenior.harucoding.generation.seed;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 public interface SeedSetRepository extends JpaRepository<SeedSet, Long> {
+
+    /** 벡터 임베딩을 명시적 CAST로 갱신(varchar→vector 암묵 캐스팅 불가 대응). */
+    @Modifying
+    @Transactional
+    @Query(value = "UPDATE seed_sets SET embedding = CAST(:vec AS vector) WHERE id = :id", nativeQuery = true)
+    void updateEmbedding(@Param("id") Long id, @Param("vec") String vec);
 
     /**
      * 요청 조건(category/subcategory/language/difficulty)으로 필터 후

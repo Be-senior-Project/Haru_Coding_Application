@@ -40,8 +40,6 @@ public class SecurityConfig {
                         ).permitAll()
                         // 문제 조회(GET)는 공개, 풀이 제출(POST)은 인증 필요
                         .requestMatchers(HttpMethod.GET, "/api/problems", "/api/problems/**").permitAll()
-                        // [임시 테스트용] 생성 엔드포인트 공개 — 테스트 후 제거 예정
-                        .requestMatchers(HttpMethod.POST, "/api/problems/generate").permitAll()
                         // 나머지 전부 인증 필요
                         .anyRequest().authenticated()
                 )

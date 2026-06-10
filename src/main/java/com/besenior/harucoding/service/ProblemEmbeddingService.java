@@ -52,11 +52,7 @@ public class ProblemEmbeddingService {
 
         int count = 0;
         for (Problem p : missing) {
-            String vector = embed(buildText(p));
-            embeddingRepository.save(ProblemEmbedding.builder()
-                    .problemId(p.getId())
-                    .embedding(vector)
-                    .build());
+            embeddingRepository.upsertEmbedding(p.getId(), embed(buildText(p)));
             count++;
         }
         log.info("임베딩 생성 완료: {}건 (전체 {} / 기존 {})", count,
@@ -89,13 +85,10 @@ public class ProblemEmbeddingService {
         }
     }
 
-    /** 문제 1건의 임베딩을 생성해 ProblemEmbedding으로 반환(저장은 호출 측에서).
+    /** 문제 1건의 임베딩을 생성해 바로 저장(벡터는 명시적 CAST로 upsert).
      *  buildText를 재사용하므로 backfill과 동일한 임베딩 축을 보장한다. */
-    public ProblemEmbedding createEmbedding(Problem p) {
-        return ProblemEmbedding.builder()
-                .problemId(p.getId())
-                .embedding(embed(buildText(p)))
-                .build();
+    public void saveEmbedding(Problem p) {
+        embeddingRepository.upsertEmbedding(p.getId(), embed(buildText(p)));
     }
 
     /** 임베딩 입력 텍스트: 개념/제목/설명/스켈레톤을 합쳐 의미를 풍부하게. */
