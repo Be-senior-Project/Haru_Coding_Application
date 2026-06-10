@@ -89,6 +89,15 @@ public class ProblemEmbeddingService {
         }
     }
 
+    /** 문제 1건의 임베딩을 생성해 ProblemEmbedding으로 반환(저장은 호출 측에서).
+     *  buildText를 재사용하므로 backfill과 동일한 임베딩 축을 보장한다. */
+    public ProblemEmbedding createEmbedding(Problem p) {
+        return ProblemEmbedding.builder()
+                .problemId(p.getId())
+                .embedding(embed(buildText(p)))
+                .build();
+    }
+
     /** 임베딩 입력 텍스트: 개념/제목/설명/스켈레톤을 합쳐 의미를 풍부하게. */
     private String buildText(Problem p) {
         return String.join("\n",

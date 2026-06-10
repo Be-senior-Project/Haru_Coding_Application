@@ -1,0 +1,54 @@
+import java.util.*;
+import java.lang.reflect.Array;
+
+public class Main {
+    __ANSWER__
+
+    static String __esc(String s) {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\') b.append("\\\\");
+            else if (c == '"') b.append("\\\"");
+            else if (c == '\n') b.append("\\n");
+            else if (c == '\r') b.append("\\r");
+            else if (c == '\t') b.append("\\t");
+            else b.append(c);
+        }
+        return b.toString();
+    }
+
+    static String __json(Object o) {
+        if (o == null) return "null";
+        if (o instanceof String) return "\"" + __esc((String) o) + "\"";
+        if (o instanceof Character) return "\"" + __esc(String.valueOf(o)) + "\"";
+        if (o instanceof Boolean || o instanceof Number) return String.valueOf(o);
+        if (o.getClass().isArray()) {
+            int n = Array.getLength(o);
+            StringBuilder b = new StringBuilder("[");
+            for (int i = 0; i < n; i++) { if (i > 0) b.append(", "); b.append(__json(Array.get(o, i))); }
+            return b.append("]").toString();
+        }
+        if (o instanceof Iterable) {
+            StringBuilder b = new StringBuilder("[");
+            boolean f = true;
+            for (Object e : (Iterable<?>) o) { if (!f) b.append(", "); f = false; b.append(__json(e)); }
+            return b.append("]").toString();
+        }
+        if (o instanceof Map) {
+            StringBuilder b = new StringBuilder("{");
+            boolean f = true;
+            for (Map.Entry<?, ?> e : ((Map<?, ?>) o).entrySet()) {
+                if (!f) b.append(", "); f = false;
+                b.append(__json(String.valueOf(e.getKey()))).append(": ").append(__json(e.getValue()));
+            }
+            return b.append("}").toString();
+        }
+        return "\"" + __esc(String.valueOf(o)) + "\"";
+    }
+
+    public static void main(String[] args) {
+        __IO__
+        System.out.println(__json((Object) new Main().solution(__ARGS__)));
+    }
+}

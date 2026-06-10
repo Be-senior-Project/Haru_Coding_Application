@@ -8,8 +8,9 @@ services:
       POSTGRES_DB: HaruCoding
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root1212
+    # 호스트 포트 5433로 매핑(다른 postgres와 충돌 방지). 컨테이너 내부는 5432 유지.
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - harucoding_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -18,6 +19,27 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+  api:
+    build: .
+    container_name: harucoding-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # datasource는 표준 Spring 환경변수로 오버라이드(컨테이너 내부에선 postgres 서비스로 접속).
+    # 나머지 비밀값(OPENAI_API_KEY, ENCRYPTION_SECRET_KEY, GOOGLE 등)은 호스트 .env를 마운트해 그대로 사용.
+    # 비밀값은 compose가 호스트 .env에서 읽어 컨테이너 환경변수로 주입(파일 마운트 X).
+    environment:
+      # stringtype=unspecified: 문자열을 unknown으로 보내 Postgres가 vector(1536)로 캐스팅하게 함
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/HaruCoding?stringtype=unspecified
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: root1212
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ENCRYPTION_SECRET_KEY: ${ENCRYPTION_SECRET_KEY}
+      Haru_Coding_backend_CLIENT_ID: ${GOOGLE_CLIENT_ID:-dummy-client-id}
+    ports:
+      - "8080:8080"
     restart: unless-stopped
 
 volumes:

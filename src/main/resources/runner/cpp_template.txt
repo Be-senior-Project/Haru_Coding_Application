@@ -1,0 +1,44 @@
+#include <bits/stdc++.h>
+using namespace std;
+
+static string __esc(const string& s) {
+    string r;
+    for (char c : s) {
+        if (c == '\\') r += "\\\\";
+        else if (c == '"') r += "\\\"";
+        else if (c == '\n') r += "\\n";
+        else if (c == '\r') r += "\\r";
+        else if (c == '\t') r += "\\t";
+        else r += c;
+    }
+    return r;
+}
+static string __json(bool b) { return b ? "true" : "false"; }
+static string __json(char c) { return "\"" + __esc(string(1, c)) + "\""; }
+static string __json(const string& s) { return "\"" + __esc(s) + "\""; }
+static string __json(const char* s) { return __json(string(s)); }
+static string __json(double x) {
+    if (x == (long long)x) return to_string((long long)x);
+    ostringstream o; o << x; return o.str();
+}
+static string __json(float x) { return __json((double)x); }
+template <class T>
+static auto __json(T x) -> decltype(to_string(x)) { return to_string(x); }
+template <class T>
+static string __json(const vector<T>& v) {
+    string r = "[";
+    for (size_t i = 0; i < v.size(); i++) { if (i) r += ", "; r += __json(v[i]); }
+    return r + "]";
+}
+template <class A, class B>
+static string __json(const pair<A, B>& p) {
+    return "[" + __json(p.first) + ", " + __json(p.second) + "]";
+}
+
+__ANSWER__
+
+int main() {
+    __IO__
+    cout << __json(solution(__ARGS__)) << endl;
+    return 0;
+}
