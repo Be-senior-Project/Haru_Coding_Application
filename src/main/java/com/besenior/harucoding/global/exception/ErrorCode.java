@@ -19,6 +19,7 @@ public enum ErrorCode {
     // 문제 세트
     PROBLEM_SET_NOT_FOUND(HttpStatus.NOT_FOUND,   "오늘의 문제 세트가 준비되지 않았습니다."),
     ALREADY_SUBMITTED    (HttpStatus.CONFLICT,     "이미 제출한 세트입니다."),
+    SET_GENERATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "오늘의 세트 생성에 실패했습니다. 잠시 후 다시 시도해주세요."),
 
     // 문제
     PROBLEM_NOT_FOUND    (HttpStatus.NOT_FOUND,    "문제를 찾을 수 없습니다.");

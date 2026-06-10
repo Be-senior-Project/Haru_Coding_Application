@@ -4,6 +4,8 @@ import com.besenior.harucoding.DTO.ProblemSetResponse;
 import com.besenior.harucoding.DTO.SubmitAnswerRequest;
 import com.besenior.harucoding.DTO.SubmitResultResponse;
 import com.besenior.harucoding.entity.*;
+import com.besenior.harucoding.generation.GenerationPipeline;
+import com.besenior.harucoding.global.enums.DifficultyLevel;
 import com.besenior.harucoding.global.enums.XpReason;
 import com.besenior.harucoding.global.exception.CustomException;
 import com.besenior.harucoding.global.exception.ErrorCode;
@@ -31,9 +33,13 @@ public class ProblemSetService {
     private final UserCategoryStatRepository categoryStatRepository;
     private final UserXpLogRepository xpLogRepository;
     private final TopicRepository topicRepository;
+    private final GenerationPipeline generationPipeline;
 
     private static final int XP_PER_CORRECT = 10;
     private static final int XP_STREAK_BONUS = 5;
+    private static final int PROBLEMS_PER_SET = 3;
+    private static final List<String> ALL_TYPES =
+            List.of("Implementation", "Debugging", "Fill-in-the-blank");
 
     @Transactional(readOnly = true)
     public ProblemSetResponse getTodaySet() {
@@ -41,6 +47,78 @@ public class ProblemSetService {
                 .findByTargetDateWithItems(LocalDate.now())
                 .orElseThrow(() -> new CustomException(ErrorCode.PROBLEM_SET_NOT_FOUND));
         return ProblemSetResponse.from(set, false); // 정답 미포함
+    }
+
+    /**
+     * 오늘의 세트를 반환하되, 없으면 LLM으로 생성해 problem_sets로 묶어 저장한다.
+     * 생성 난이도·언어는 유저의 온보딩 추천값(recommended_difficulty / preferred_language)을 반영.
+     * 날짜당 1세트(target_date UNIQUE)라 첫 호출자만 생성하고 이후엔 같은 세트를 공유한다.
+     */
+    @Transactional
+    public ProblemSetResponse ensureTodaySet(Long userId) {
+        LocalDate today = LocalDate.now();
+
+        var existing = problemSetRepository.findByTargetDateWithItems(today);
+        if (existing.isPresent()) {
+            return ProblemSetResponse.from(existing.get(), false);
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        int difficulty = mapDifficulty(user.getRecommendedDifficulty());
+        String language = mapLanguage(user.getPreferredLanguage());
+        String category = difficulty == 0 ? "Basic/Introductory" : "Algorithm/Data Structure";
+
+        List<Problem> problems = generationPipeline.generateAndSave(
+                category, null, difficulty, language, ALL_TYPES, PROBLEMS_PER_SET);
+        if (problems.isEmpty()) {
+            throw new CustomException(ErrorCode.SET_GENERATION_FAILED);
+        }
+
+        ProblemSet set = ProblemSet.builder()
+                .title("오늘의 코딩 도전")
+                .targetDate(today)
+                .difficulty(toLevel(difficulty))
+                .isAiGenerated(true)
+                .build();
+        for (int i = 0; i < problems.size(); i++) {
+            set.getItems().add(ProblemSetItem.builder()
+                    .problemSet(set).problem(problems.get(i)).sortOrder(i).build());
+        }
+        problemSetRepository.save(set); // cascade로 items 함께 저장
+
+        return ProblemSetResponse.from(set, false);
+    }
+
+    // 추천 난이도 라벨(입문/초급/중급/고급) → 생성 난이도(0/1/2)
+    private int mapDifficulty(String recommended) {
+        if (recommended == null) return 0;
+        return switch (recommended) {
+            case "초급" -> 1;
+            case "중급", "고급" -> 2;
+            default -> 0; // 입문 및 미설정
+        };
+    }
+
+    // 생성 난이도(0/1/2) → 세트 라벨용 DifficultyLevel
+    private DifficultyLevel toLevel(int difficulty) {
+        return switch (difficulty) {
+            case 1 -> DifficultyLevel.초급;
+            case 2 -> DifficultyLevel.중급;
+            default -> DifficultyLevel.입문;
+        };
+    }
+
+    // 선호 언어(JAVA/PYTHON/C/JS) → 생성 언어(Python/Java/C++). 생성기는 JS 미지원 → Python 폴백
+    private String mapLanguage(String preferred) {
+        if (preferred == null) return "Python";
+        return switch (preferred) {
+            case "JAVA" -> "Java";
+            case "C" -> "C++";
+            case "PYTHON", "JS" -> "Python";
+            default -> "Python";
+        };
     }
 
     @Transactional

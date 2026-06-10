@@ -22,6 +22,14 @@ public class ProblemSetController {
         return ApiResponse.success(problemSetService.getTodaySet());
     }
 
+    /** 오늘의 세트를 반환하되, 없으면 LLM으로 생성해 묶어 저장한다. 인증 필요(생성 비용 통제). */
+    @PostMapping("/today/ensure")
+    public ApiResponse<ProblemSetResponse> ensureTodaySet(
+            @RequestHeader("Authorization") String token) {
+        Long userId = jwtProvider.getUserId(token.replace("Bearer ", ""));
+        return ApiResponse.success(problemSetService.ensureTodaySet(userId));
+    }
+
     @PostMapping("/{setId}/submit")
     public ApiResponse<SubmitResultResponse> submit(
             @RequestHeader("Authorization") String token,
