@@ -9,6 +9,8 @@ export type Colors = {
   subText: string;
   border: string;
   filterInactive: string;
+  primary: string;      // 메인 보라색 (버튼/강조)
+  primarySoft: string;  // 연한 보라 배경 (배지/아이콘 박스)
   isDark: boolean;
 };
 
@@ -21,12 +23,14 @@ export const FONT_SCALE: Record<FontSizeKey, number> = {
 };
 
 const light: Colors = {
-  bg: '#F5F7FA',
+  bg: '#F5F6FB',
   card: '#FFFFFF',
   text: '#1A1A2E',
-  subText: '#888888',
-  border: '#E0E0E0',
+  subText: '#8A8AA0',
+  border: '#ECECF3',
   filterInactive: '#E0E0E0',
+  primary: '#6C5CE7',
+  primarySoft: '#EEEBFF',
   isDark: false,
 };
 
@@ -37,6 +41,8 @@ const dark: Colors = {
   subText: '#9E9E9E',
   border: '#2E2E3E',
   filterInactive: '#2A2A3A',
+  primary: '#8B7BF0',
+  primarySoft: '#26233A',
   isDark: true,
 };
 
@@ -49,6 +55,7 @@ type ThemeContextType = {
   setFontSize: (key: FontSizeKey) => void;
 };
 
+// 기본값(컨텍스트 미초기화 시) — 실제로는 ThemeProvider가 덮어씀
 const ThemeContext = createContext<ThemeContextType>({
   colors: light,
   isDark: false,

@@ -19,6 +19,7 @@ import {useTheme, type Colors} from '../theme/ThemeContext';
 import type {RootStackParamList} from '../navigation/AppNavigator';
 import {login, googleLogin} from '../api/authApi';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 // TODO: 백엔드 연동 시 실제 클라이언트 ID로 교체
 import {GOOGLE_WEB_CLIENT_ID} from '@env';
 
@@ -34,6 +35,8 @@ export default function LoginScreen() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [keepLoggedIn, setKeepLoggedIn] = useState(true);
   const [loading, setLoading] = useState(false);
 
   const saveTokensAndGoHome = async (accessToken: string, refreshToken: string) => {
@@ -84,32 +87,51 @@ export default function LoginScreen() {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={[styles.inner, {paddingTop: insets.top + 48}]}>
+      <View style={[styles.inner, {paddingTop: insets.top + 56}]}>
         <View style={styles.logoBox}>
-          <MaterialIcons name="code" size={48} color="#2979FF" />
+          <MaterialIcons name="code" size={34} color={colors.primary} />
         </View>
         <Text style={styles.appName}>하루코딩</Text>
-        <Text style={styles.tagline}>오늘도 한 문제씩</Text>
+        <Text style={styles.tagline}>매일 30분, 코딩 실력을 성장시키세요</Text>
 
         <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="이메일"
-            placeholderTextColor={colors.subText}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="비밀번호"
-            placeholderTextColor={colors.subText}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+          <View style={styles.inputRow}>
+            <MaterialIcons name="mail-outline" size={20} color={colors.subText} style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="이메일"
+              placeholderTextColor={colors.subText}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+
+          <View style={styles.inputRow}>
+            <MaterialIcons name="lock-outline" size={20} color={colors.subText} style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="비밀번호"
+              placeholderTextColor={colors.subText}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPw}
+            />
+            <TouchableOpacity onPress={() => setShowPw(v => !v)} hitSlop={8}>
+              <MaterialIcons name={showPw ? 'visibility' : 'visibility-off'} size={20} color={colors.subText} />
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity style={styles.keepRow} onPress={() => setKeepLoggedIn(v => !v)} activeOpacity={0.7}>
+            <MaterialIcons
+              name={keepLoggedIn ? 'check-circle' : 'radio-button-unchecked'}
+              size={18}
+              color={keepLoggedIn ? colors.primary : colors.subText}
+            />
+            <Text style={styles.keepText}>로그인 상태 유지</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.loginBtn, loading && styles.btnDisabled]}
@@ -132,25 +154,19 @@ export default function LoginScreen() {
             style={[styles.googleBtn, loading && styles.btnDisabled]}
             onPress={handleGoogleLogin}
             disabled={loading}>
-            <MaterialIcons name="g-translate" size={20} color="#4285F4" />
+            <MaterialCommunityIcons name="google" size={20} color="#4285F4" />
             <Text style={styles.googleBtnText}>Google로 계속하기</Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.signupLink}
-          onPress={() => navigation.navigate('Signup')}>
-          <Text style={styles.signupLinkText}>
-            아직 계정이 없으신가요?{'  '}
-            <Text style={styles.signupLinkBold}>회원가입</Text>
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.skipLink}
-          onPress={() => navigation.reset({index: 0, routes: [{name: 'Main'}]})}>
-          <Text style={styles.skipLinkText}>로그인 없이 둘러보기 →</Text>
-        </TouchableOpacity>
+        <View style={styles.bottomRow}>
+          <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+            <Text style={styles.bottomLink}>회원가입</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.reset({index: 0, routes: [{name: 'Main'}]})}>
+            <Text style={styles.bottomLinkAccent}>비회원으로 둘러보기 →</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -159,65 +175,47 @@ export default function LoginScreen() {
 function makeStyles(c: Colors, fs: number) {
   return StyleSheet.create({
     container: {flex: 1, backgroundColor: c.bg},
-    inner: {flex: 1, paddingHorizontal: 28, paddingBottom: 40},
-    logoBox: {alignItems: 'center', marginBottom: 8},
-    appName: {
-      fontSize: 28 * fs,
-      fontWeight: '800',
-      color: c.text,
-      textAlign: 'center',
-      marginBottom: 4,
+    inner: {flex: 1, paddingHorizontal: 28, paddingBottom: 28},
+
+    logoBox: {
+      width: 64, height: 64, borderRadius: 18, backgroundColor: c.primarySoft,
+      alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 14,
     },
-    tagline: {
-      fontSize: 14 * fs,
-      color: c.subText,
-      textAlign: 'center',
-      marginBottom: 40,
-    },
+    appName: {fontSize: 28 * fs, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 6},
+    tagline: {fontSize: 14 * fs, color: c.subText, textAlign: 'center', marginBottom: 36},
+
     form: {gap: 12},
-    input: {
-      backgroundColor: c.card,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      fontSize: 15 * fs,
-      color: c.text,
+    inputRow: {
+      flexDirection: 'row', alignItems: 'center',
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12,
+      paddingHorizontal: 14,
     },
+    inputIcon: {marginRight: 10},
+    input: {flex: 1, paddingVertical: 14, fontSize: 15 * fs, color: c.text},
+
+    keepRow: {flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2},
+    keepText: {fontSize: 13 * fs, color: c.subText},
+
     loginBtn: {
-      backgroundColor: '#2979FF',
-      borderRadius: 12,
-      paddingVertical: 15,
-      alignItems: 'center',
-      marginTop: 4,
+      backgroundColor: c.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 4,
     },
-    loginBtnText: {color: '#FFF', fontWeight: '700', fontSize: 16 * fs},
-    dividerRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-      marginVertical: 4,
-    },
+    loginBtnText: {color: '#FFF', fontWeight: '800', fontSize: 16 * fs},
+
+    dividerRow: {flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 6},
     dividerLine: {flex: 1, height: 1, backgroundColor: c.border},
     dividerText: {fontSize: 12 * fs, color: c.subText},
+
     googleBtn: {
-      backgroundColor: c.card,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 12,
-      paddingVertical: 15,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12,
+      paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     },
-    googleBtnText: {color: c.text, fontWeight: '600', fontSize: 15 * fs},
+    googleBtnText: {color: c.text, fontWeight: '700', fontSize: 15 * fs},
     btnDisabled: {opacity: 0.6},
-    signupLink: {marginTop: 'auto', alignItems: 'center'},
-    signupLinkText: {fontSize: 14 * fs, color: c.subText},
-    signupLinkBold: {color: '#2979FF', fontWeight: '700'},
-    skipLink: {marginTop: 12, alignItems: 'center'},
-    skipLinkText: {fontSize: 13 * fs, color: c.subText},
+
+    bottomRow: {
+      marginTop: 'auto', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16,
+    },
+    bottomLink: {fontSize: 14 * fs, color: c.subText, fontWeight: '600'},
+    bottomLinkAccent: {fontSize: 14 * fs, color: c.primary, fontWeight: '700'},
   });
 }

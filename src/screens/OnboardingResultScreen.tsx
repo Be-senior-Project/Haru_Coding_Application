@@ -43,7 +43,7 @@ export default function OnboardingResultScreen() {
   const insets = useSafeAreaInsets();
 
   const {difficulty, reason, focusPoint} = route.params;
-  const diffColor = DIFFICULTY_COLOR[difficulty] ?? '#2979FF';
+  const diffColor = DIFFICULTY_COLOR[difficulty] ?? colors.primary;
   const diffIcon = DIFFICULTY_ICON[difficulty] ?? 'star';
 
   return (
@@ -60,8 +60,8 @@ export default function OnboardingResultScreen() {
         <View style={[styles.heroBadge, {backgroundColor: diffColor + '20'}]}>
           <MaterialIcons name={diffIcon} size={48} color={diffColor} />
         </View>
-        <Text style={styles.heroTitle}>맞춤 추천 완료!</Text>
-        <Text style={styles.heroSubtitle}>분석 결과를 확인해보세요</Text>
+        <Text style={styles.heroTitle}>준비가 되었어요! 🎉</Text>
+        <Text style={styles.heroSubtitle}>이제 당신에게 딱 맞는 문제를 추천해드릴게요</Text>
       </View>
 
       {/* 추천 난이도 카드 */}
@@ -89,8 +89,8 @@ export default function OnboardingResultScreen() {
       {/* 추천 이유 카드 */}
       <View style={styles.infoCard}>
         <View style={styles.infoCardHeader}>
-          <View style={[styles.infoIcon, {backgroundColor: '#2979FF20'}]}>
-            <MaterialIcons name="info-outline" size={18} color="#2979FF" />
+          <View style={[styles.infoIcon, {backgroundColor: colors.primary + '20'}]}>
+            <MaterialIcons name="info-outline" size={18} color={colors.primary} />
           </View>
           <Text style={styles.infoCardTitle}>추천 이유</Text>
         </View>
@@ -216,9 +216,9 @@ function makeStyles(c: Colors, fs: number) {
     },
     tipText: {fontSize: 12 * fs, color: c.subText, flex: 1, lineHeight: 18 * fs},
     startBtn: {
-      backgroundColor: '#2979FF',
-      borderRadius: 12,
-      paddingVertical: 15,
+      backgroundColor: c.primary,
+      borderRadius: 14,
+      paddingVertical: 16,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',

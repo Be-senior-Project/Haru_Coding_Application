@@ -1,14 +1,32 @@
 import React, {useCallback, useMemo, useState} from 'react';
-import {View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator} from 'react-native';
+import {View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Alert} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import {useFocusEffect} from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {statsApi, type StatsData} from '../api/statsApi';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 const WEEK_DAYS = ['월', '화', '수', '목', '금', '토', '일'];
-const PERIOD_OPTIONS = ['주별', '월별', '전체'] as const;
-type Period = typeof PERIOD_OPTIONS[number];
+const TABS = ['전체', '주간', '월간', '연간'];
+
+// solvedAt(ISO) → "M/D HH:mm"
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+// 이번 주 월~일 날짜 범위 "M.D - M.D"
+function thisWeekRange(): string {
+  const now = new Date();
+  const dayIdx = (now.getDay() + 6) % 7; // 월=0
+  const mon = new Date(now);
+  mon.setDate(now.getDate() - dayIdx);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  const fmt = (d: Date) => `${d.getMonth() + 1}.${d.getDate()}`;
+  return `${fmt(mon)} - ${fmt(sun)}`;
+}
 
 export default function StatsScreen() {
   const insets = useSafeAreaInsets();
@@ -18,8 +36,7 @@ export default function StatsScreen() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasToken, setHasToken] = useState(false);
-  const [selectedTopic, setSelectedTopic] = useState('전체');
-  const [selectedPeriod, setSelectedPeriod] = useState<Period>('주별');
+  const [tab, setTab] = useState('전체');
 
   useFocusEffect(
     useCallback(() => {
@@ -30,12 +47,10 @@ export default function StatsScreen() {
   const loadStats = async () => {
     const token = await AsyncStorage.getItem('accessToken');
     setHasToken(!!token);
-    if (!token) return;
-
+    if (!token) {return;}
     setLoading(true);
     try {
-      const data = await statsApi.getMyStats();
-      setStats(data);
+      setStats(await statsApi.getMyStats());
     } catch (e) {
       console.error('통계 로드 실패', e);
     } finally {
@@ -43,94 +58,98 @@ export default function StatsScreen() {
     }
   };
 
-  // 토픽 필터 목록 (API 데이터 기반으로 동적 생성)
-  const topicOptions = useMemo(() => {
-    if (!stats) return ['전체'];
-    return ['전체', ...stats.categoryStats.map(c => c.topicName)];
+  // weeklyActivity → 항상 길이 7의 "유효한 숫자"로 정규화 (월~일)
+  const week = useMemo(() => {
+    const w = stats?.weeklyActivity ?? [];
+    return Array.from({length: 7}, (_, i) => Number(w[i]) || 0);
   }, [stats]);
+  const maxBar = Math.max(...week, 1);
+  const weekTotal = week.reduce((a, b) => a + b, 0);
+  const todayIdx = (new Date().getDay() + 6) % 7; // 월=0 기준
 
-  // 필터링된 카테고리 통계
-  const filteredCategories = useMemo(() => {
-    if (!stats) return [];
-    if (selectedTopic === '전체') return stats.categoryStats;
-    return stats.categoryStats.filter(c => c.topicName === selectedTopic);
-  }, [stats, selectedTopic]);
-
-  // 기간별 바 차트 데이터
-  const barData = useMemo(() => {
-    if (!stats) return Array(7).fill(0);
-    return stats.weeklyActivity;
+  // 약점 영역: 푼 적 있는 주제 중 정답률 최저 (실제 데이터)
+  const weakest = useMemo(() => {
+    const cs = (stats?.categoryStats ?? []).filter(c => (Number(c.totalSolved) || 0) > 0);
+    if (cs.length === 0) {return null;}
+    return cs.reduce((min, c) => (Number(c.accuracyRate) < Number(min.accuracyRate) ? c : min));
   }, [stats]);
-
-  const maxBar = Math.max(...barData, 1);
 
   if (loading) {
     return (
-      <View style={[styles.container, {justifyContent: 'center', alignItems: 'center'}]}>
-        <ActivityIndicator size="large" color="#2979FF" />
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   if (!hasToken) {
     return (
-      <View style={[styles.container, {justifyContent: 'center', alignItems: 'center', padding: 40}]}>
+      <View style={[styles.container, styles.center, styles.lockPad]}>
+        <MaterialIcons name="lock" size={32} color={colors.subText} />
         <Text style={styles.emptyText}>로그인하면 학습 통계를 볼 수 있어요</Text>
       </View>
     );
   }
 
+  const accuracy = stats?.accuracyRate ?? 0;
+
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={[styles.content, {paddingTop: insets.top + 20}]}>
-      <Text style={styles.title}>학습 통계</Text>
+      contentContainerStyle={[styles.content, {paddingTop: insets.top + 8}]}>
 
-      {/* 토픽 필터 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-        {topicOptions.map(t => (
-          <TouchableOpacity
-            key={t}
-            style={[styles.filterBtn, selectedTopic === t && styles.filterActive]}
-            onPress={() => setSelectedTopic(t)}>
-            <Text style={[styles.filterText, selectedTopic === t && styles.filterTextActive]}>{t}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      {/* 헤더 */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>학습 통계</Text>
+        <TouchableOpacity onPress={() => Alert.alert('알림', '새로운 알림이 없어요.')} hitSlop={8}>
+          <MaterialIcons name="notifications-none" size={24} color={colors.text} />
+        </TouchableOpacity>
+      </View>
 
-      {/* 기간 필터 */}
-      <View style={styles.periodRow}>
-        {PERIOD_OPTIONS.map(p => (
-          <TouchableOpacity
-            key={p}
-            style={[styles.periodBtn, selectedPeriod === p && styles.periodActive]}
-            onPress={() => setSelectedPeriod(p)}>
-            <Text style={[styles.periodText, selectedPeriod === p && styles.periodTextActive]}>{p}</Text>
+      {/* 기간 탭 */}
+      <View style={styles.tabRow}>
+        {TABS.map(t => (
+          <TouchableOpacity key={t} style={styles.tab} onPress={() => setTab(t)}>
+            <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t}</Text>
+            {tab === t && <View style={styles.tabUnderline} />}
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* 요약 카드 */}
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>총 문제 수</Text>
-            <Text style={styles.summaryValue}>
-              {stats?.totalSolved ?? 0} <Text style={styles.summaryUnit}>개</Text>
-            </Text>
-            <Text style={styles.summaryAccuracy}>정답률 {stats?.accuracyRate ?? 0}%</Text>
+      {/* 이번 주 학습 현황 */}
+      <View style={styles.card}>
+        <View style={styles.cardTitleRow}>
+          <Text style={styles.cardLabel}>이번 주 학습 현황</Text>
+          <Text style={styles.cardDate}>{thisWeekRange()}</Text>
+        </View>
+        <View style={styles.weekTop}>
+          <View style={styles.weekTopLeft}>
+            <Text style={styles.cardSub}>이번 주 푼 문제</Text>
+            <View style={styles.weekValueRow}>
+              <Text style={styles.weekValue}>{weekTotal}</Text>
+              <Text style={styles.weekUnit}> 문제</Text>
+            </View>
+          </View>
+          {/* 정답률 링 (실제 정답률) */}
+          <View style={styles.ringWrap}>
+            <View style={styles.ring} />
+            <View style={styles.ringInner}>
+              <Text style={styles.ringValue}>{accuracy}%</Text>
+              <Text style={styles.ringLabel}>정답률</Text>
+            </View>
           </View>
         </View>
 
-        {/* 바 차트 */}
+        {/* 주간 바 차트 */}
         <View style={styles.barChart}>
-          {barData.map((h, i) => (
+          {week.map((h, i) => (
             <View key={i} style={styles.barWrapper}>
+              <Text style={styles.barTop}>{h > 0 ? h : ''}</Text>
               <View style={[
                 styles.bar,
                 {
-                  height: Math.max((h / maxBar) * 80, 4),
-                  backgroundColor: i === new Date().getDay() - 1 ? '#2979FF' : '#BBDEFB',
+                  height: Math.max((h / maxBar) * 70, 4),
+                  backgroundColor: i === todayIdx ? colors.primary : colors.primarySoft,
                 },
               ]} />
               <Text style={styles.barLabel}>{WEEK_DAYS[i]}</Text>
@@ -139,129 +158,190 @@ export default function StatsScreen() {
         </View>
       </View>
 
-      {/* 지표 카드 */}
-      <View style={styles.metricsRow}>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>정답률</Text>
-          <Text style={styles.metricValue}>{stats?.accuracyRate ?? 0}%</Text>
-          <View style={styles.metricBar}>
-            <View style={[styles.metricFill, {width: `${stats?.accuracyRate ?? 0}%`, backgroundColor: '#2979FF'}]} />
-          </View>
-        </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>연속 학습</Text>
-          <Text style={styles.metricValue}>{stats?.currentStreak ?? 0}일</Text>
-          <View style={styles.metricBar}>
-            <View style={[styles.metricFill, {width: `${Math.min((stats?.currentStreak ?? 0) * 10, 100)}%`, backgroundColor: '#FF9800'}]} />
-          </View>
-        </View>
+      {/* 핵심 지표 3종 (실제 값) */}
+      <View style={styles.metricRow}>
+        <Metric icon="article" color="#6C5CE7" value={`${stats?.totalSolved ?? 0}`} unit="개" label="푼 문제 수" colors={colors} fs={fontScale} />
+        <Metric icon="check-circle" color="#26C281" value={`${accuracy}`} unit="%" label="정답률" colors={colors} fs={fontScale} />
+        <Metric icon="local-fire-department" color="#FF6B35" value={`${stats?.currentStreak ?? 0}`} unit="일" label="연속 학습" colors={colors} fs={fontScale} />
       </View>
 
-      {/* 주제별 성취도 */}
-      <Text style={styles.sectionTitle}>주제별 성취도</Text>
-      {filteredCategories.length === 0 ? (
-        <Text style={styles.emptyText}>아직 푼 문제가 없어요</Text>
+      {/* 실력 분석 (주제별 정답률 + 약점 팁) */}
+      <Text style={styles.sectionTitle}>실력 분석</Text>
+      {(stats?.categoryStats?.length ?? 0) === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyText}>아직 푼 문제가 없어요</Text>
+        </View>
       ) : (
-        filteredCategories.map(cat => (
-          <View key={cat.topicId} style={styles.topicRow}>
-            <View style={styles.topicIconBox}>
-              <Text style={styles.topicIcon}>{getTopicIcon(cat.topicName)}</Text>
-            </View>
-            <View style={styles.topicInfo}>
-              <View style={styles.topicLabelRow}>
-                <Text style={styles.topicLabel}>{cat.topicName}</Text>
-                <Text style={styles.topicPct}>{cat.accuracyRate.toFixed(1)}%</Text>
+        <View style={styles.card}>
+          {stats!.categoryStats.map((cat, i) => {
+            const acc = Math.min(Number(cat.accuracyRate) || 0, 100);
+            return (
+              <View key={cat.topicId} style={[styles.topicRow, i > 0 && styles.topicDivider]}>
+                <View style={styles.topicLabelRow}>
+                  <Text style={styles.topicLabel}>{cat.topicName}</Text>
+                  <Text style={styles.topicPct}>{acc.toFixed(0)}%</Text>
+                </View>
+                <View style={styles.topicBarBg}>
+                  <View style={[styles.topicBarFill, {width: `${acc}%`}]} />
+                </View>
+                <Text style={styles.topicSub}>{Number(cat.correctCount) || 0}/{Number(cat.totalSolved) || 0} 정답</Text>
               </View>
-              <View style={styles.topicBarBg}>
-                <View style={[styles.topicBarFill, {width: `${cat.accuracyRate}%`}]} />
-              </View>
-              <Text style={styles.topicSub}>{cat.correctCount}/{cat.totalSolved} 정답</Text>
+            );
+          })}
+
+          {weakest && (
+            <View style={styles.tipBox}>
+              <MaterialIcons name="lightbulb" size={18} color="#F5B301" />
+              <Text style={styles.tipText}>
+                <Text style={styles.tipStrong}>{weakest.topicName}</Text> 영역이 약점이에요! 해당 영역 문제를 더 풀어보는 걸 추천해요.
+              </Text>
             </View>
-          </View>
-        ))
+          )}
+        </View>
       )}
 
-      {/* 최근 활동 */}
+      {/* 최근 푼 문제 (실제 recentRecords) */}
       {stats && stats.recentRecords.length > 0 && (
         <>
-          <Text style={[styles.sectionTitle, {marginTop: 20}]}>최근 활동</Text>
-          {stats.recentRecords.map((r, i) => (
-            <View key={i} style={styles.recentItem}>
-              <Text style={[styles.recentIcon, {color: r.isCorrect ? '#4CAF50' : '#F44336'}]}>
-                {r.isCorrect ? '✓' : '✗'}
-              </Text>
-              <View style={styles.recentInfo}>
-                <Text style={styles.recentTitle}>{r.problemTitle}</Text>
-                <Text style={styles.recentMeta}>{r.topic} · {formatDate(r.solvedAt)}</Text>
+          <View style={styles.recentHead}>
+            <Text style={styles.sectionTitle}>최근 푼 문제</Text>
+            <TouchableOpacity onPress={() => Alert.alert('더보기', '곧 추가될 기능이에요.')} hitSlop={6}>
+              <Text style={styles.moreText}>더보기</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.card}>
+            {stats.recentRecords.map((r, i) => (
+              <View key={i} style={[styles.recentItem, i > 0 && styles.topicDivider]}>
+                <MaterialIcons
+                  name={r.isCorrect ? 'check-circle' : 'cancel'}
+                  size={20}
+                  color={r.isCorrect ? '#26C281' : '#F44336'}
+                />
+                <View style={styles.recentInfo}>
+                  <Text style={styles.recentTitle} numberOfLines={1}>{r.problemTitle}</Text>
+                  <Text style={styles.recentMeta}>{r.topic} · {formatDate(r.solvedAt)}</Text>
+                </View>
+                <Text style={[styles.recentResult, {color: r.isCorrect ? '#26C281' : '#F44336'}]}>
+                  {r.isCorrect ? '정답' : '오답'}
+                </Text>
               </View>
-            </View>
-          ))}
+            ))}
+          </View>
         </>
       )}
+
+      <View style={styles.bottomSpacer} />
     </ScrollView>
   );
 }
 
-function getTopicIcon(name: string): string {
-  const map: Record<string, string> = {
-    '알고리즘': '{}', '자료구조': '#', '언어/문법': '</>', '모의테스트': '📝',
-  };
-  return map[name] ?? '📚';
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+function Metric({icon, color, value, unit, label, colors, fs}: {
+  icon: string; color: string; value: string; unit: string; label: string; colors: Colors; fs: number;
+}) {
+  const styles = makeStyles(colors, fs);
+  return (
+    <View style={styles.metricCard}>
+      <MaterialIcons name={icon} size={20} color={color} />
+      <View style={styles.metricValueRow}>
+        <Text style={styles.metricValue}>{value}</Text>
+        <Text style={styles.metricUnit}>{unit}</Text>
+      </View>
+      <Text style={styles.metricLabel}>{label}</Text>
+    </View>
+  );
 }
 
 function makeStyles(c: Colors, fs: number) {
   return StyleSheet.create({
     container: {flex: 1, backgroundColor: c.bg},
-    content: {padding: 20, paddingBottom: 40},
-    title: {fontSize: 20 * fs, fontWeight: '700', color: c.text, marginBottom: 16},
-    filterScroll: {marginBottom: 12},
-    filterBtn: {paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: c.filterInactive, marginRight: 8},
-    filterActive: {backgroundColor: '#2979FF'},
-    filterText: {fontSize: 13 * fs, color: c.subText},
-    filterTextActive: {color: '#FFF', fontWeight: '600'},
-    periodRow: {flexDirection: 'row', gap: 6, marginBottom: 16},
-    periodBtn: {paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, backgroundColor: c.filterInactive},
-    periodActive: {backgroundColor: '#1E3A5F'},
-    periodText: {fontSize: 13 * fs, color: c.subText},
-    periodTextActive: {color: '#FFF'},
-    summaryCard: {backgroundColor: c.card, borderRadius: 14, padding: 16, marginBottom: 16, elevation: 2},
-    summaryRow: {marginBottom: 12},
-    summaryItem: {},
-    summaryLabel: {fontSize: 12 * fs, color: c.subText},
-    summaryValue: {fontSize: 28 * fs, fontWeight: '700', color: c.text},
-    summaryUnit: {fontSize: 16 * fs},
-    summaryAccuracy: {fontSize: 12 * fs, color: '#4CAF50'},
-    barChart: {flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 100, marginBottom: 8},
-    barWrapper: {flex: 1, alignItems: 'center', gap: 4},
-    bar: {width: '100%', borderRadius: 4},
+    center: {justifyContent: 'center', alignItems: 'center', gap: 10},
+    lockPad: {padding: 40},
+    content: {padding: 20, paddingBottom: 32},
+    bottomSpacer: {height: 12},
+
+    header: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14},
+    headerTitle: {fontSize: 19 * fs, fontWeight: '800', color: c.text},
+
+    // 탭
+    tabRow: {flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: c.border, marginBottom: 18},
+    tab: {flex: 1, alignItems: 'center', paddingVertical: 10},
+    tabText: {fontSize: 14 * fs, color: c.subText, fontWeight: '600'},
+    tabTextActive: {color: c.primary, fontWeight: '800'},
+    tabUnderline: {position: 'absolute', bottom: -1, height: 2, width: '60%', backgroundColor: c.primary, borderRadius: 1},
+
+    card: {
+      backgroundColor: c.card, borderRadius: 20, padding: 18, marginBottom: 16,
+      shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: {width: 0, height: 4}, elevation: 2,
+    },
+    cardTitleRow: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10},
+    cardLabel: {fontSize: 14 * fs, fontWeight: '700', color: c.text},
+    cardDate: {fontSize: 12 * fs, color: c.subText},
+    cardSub: {fontSize: 12 * fs, color: c.subText, marginBottom: 2},
+
+    weekTop: {flexDirection: 'row', alignItems: 'center', marginBottom: 16},
+    weekTopLeft: {flex: 1},
+    weekValueRow: {flexDirection: 'row', alignItems: 'baseline'},
+    weekValue: {fontSize: 30 * fs, fontWeight: '900', color: c.primary},
+    weekUnit: {fontSize: 15 * fs, fontWeight: '600', color: c.subText},
+
+    // 링
+    ringWrap: {width: 84, height: 84, alignItems: 'center', justifyContent: 'center'},
+    ring: {
+      position: 'absolute', width: 84, height: 84, borderRadius: 42, borderWidth: 6,
+      borderColor: c.primary, borderBottomColor: c.border, transform: [{rotate: '-45deg'}],
+    },
+    ringInner: {alignItems: 'center'},
+    ringValue: {fontSize: 17 * fs, fontWeight: '800', color: c.text},
+    ringLabel: {fontSize: 10 * fs, color: c.subText, marginTop: 1},
+
+    // 바 차트
+    barChart: {flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 100},
+    barWrapper: {flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 4},
+    barTop: {fontSize: 9 * fs, color: c.subText, height: 12},
+    bar: {width: '70%', borderRadius: 5},
     barLabel: {fontSize: 10 * fs, color: c.subText},
-    metricsRow: {flexDirection: 'row', gap: 10, marginBottom: 20},
-    metricCard: {flex: 1, backgroundColor: c.card, borderRadius: 12, padding: 14, elevation: 2},
-    metricLabel: {fontSize: 12 * fs, color: c.subText, marginBottom: 4},
-    metricValue: {fontSize: 20 * fs, fontWeight: '700', color: c.text, marginBottom: 8},
-    metricBar: {height: 6, backgroundColor: c.border, borderRadius: 3, overflow: 'hidden'},
-    metricFill: {height: '100%', borderRadius: 3},
-    sectionTitle: {fontSize: 16 * fs, fontWeight: '700', color: c.text, marginBottom: 12},
-    topicRow: {flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 12, padding: 14, marginBottom: 8, gap: 12},
-    topicIconBox: {width: 36, height: 36, borderRadius: 8, backgroundColor: c.isDark ? '#1A1F3A' : '#EEF2FF', alignItems: 'center', justifyContent: 'center'},
-    topicIcon: {fontSize: 16},
-    topicInfo: {flex: 1},
-    topicLabelRow: {flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4},
-    topicLabel: {fontSize: 14 * fs, fontWeight: '600', color: c.text},
-    topicPct: {fontSize: 13 * fs, color: c.subText},
-    topicBarBg: {height: 6, backgroundColor: c.border, borderRadius: 3, overflow: 'hidden', marginBottom: 4},
-    topicBarFill: {height: '100%', backgroundColor: '#4CAF50', borderRadius: 3},
+
+    // 지표 3종
+    metricRow: {flexDirection: 'row', gap: 10, marginBottom: 16},
+    metricCard: {
+      flex: 1, backgroundColor: c.card, borderRadius: 16, paddingVertical: 16, alignItems: 'center', gap: 4,
+      shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: {width: 0, height: 3}, elevation: 2,
+    },
+    metricValueRow: {flexDirection: 'row', alignItems: 'baseline'},
+    metricValue: {fontSize: 22 * fs, fontWeight: '900', color: c.primary},
+    metricUnit: {fontSize: 13 * fs, fontWeight: '700', color: c.subText},
+    metricLabel: {fontSize: 11 * fs, color: c.subText},
+
+    sectionTitle: {fontSize: 16 * fs, fontWeight: '800', color: c.text, marginBottom: 12},
+
+    // 주제별
+    topicRow: {paddingVertical: 12},
+    topicDivider: {borderTopWidth: 1, borderTopColor: c.border},
+    topicLabelRow: {flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6},
+    topicLabel: {fontSize: 14 * fs, fontWeight: '700', color: c.text},
+    topicPct: {fontSize: 13 * fs, fontWeight: '700', color: c.primary},
+    topicBarBg: {height: 7, backgroundColor: c.border, borderRadius: 4, overflow: 'hidden', marginBottom: 4},
+    topicBarFill: {height: '100%', backgroundColor: c.primary, borderRadius: 4},
     topicSub: {fontSize: 11 * fs, color: c.subText},
-    recentItem: {flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 10, padding: 14, marginBottom: 8, gap: 12},
-    recentIcon: {fontSize: 18, fontWeight: '700', width: 24, textAlign: 'center'},
+
+    // 약점 팁
+    tipBox: {
+      flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginTop: 14,
+      backgroundColor: c.isDark ? '#26233A' : '#F4F2FF', borderRadius: 12, padding: 12,
+    },
+    tipText: {flex: 1, fontSize: 12 * fs, color: c.subText, lineHeight: 18 * fs},
+    tipStrong: {fontWeight: '800', color: c.text},
+
+    // 최근
+    recentHead: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4},
+    moreText: {fontSize: 13 * fs, color: c.subText, marginBottom: 12},
+    recentItem: {flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12},
     recentInfo: {flex: 1},
-    recentTitle: {fontSize: 14 * fs, fontWeight: '600', color: c.text},
+    recentTitle: {fontSize: 14 * fs, fontWeight: '700', color: c.text},
     recentMeta: {fontSize: 12 * fs, color: c.subText, marginTop: 2},
+    recentResult: {fontSize: 13 * fs, fontWeight: '800'},
+
+    emptyCard: {backgroundColor: c.card, borderRadius: 16, padding: 24, alignItems: 'center', marginBottom: 16},
     emptyText: {fontSize: 14 * fs, color: c.subText, textAlign: 'center'},
   });
 }

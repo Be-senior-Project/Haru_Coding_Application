@@ -93,7 +93,7 @@ export default function OnboardingScreen() {
       {/* 헤더 */}
       <View style={styles.header}>
         <View style={styles.iconBadge}>
-          <MaterialIcons name="emoji-objects" size={32} color="#2979FF" />
+          <MaterialIcons name="emoji-objects" size={32} color={colors.primary} />
         </View>
         <Text style={styles.title}>나에게 맞는 학습을{'\n'}찾아볼게요</Text>
         <Text style={styles.subtitle}>두 가지만 알려주시면 맞춤 추천을 드려요</Text>
@@ -126,7 +126,7 @@ export default function OnboardingScreen() {
                 <MaterialIcons
                   name={opt.icon}
                   size={20}
-                  color={selected ? '#2979FF' : colors.border}
+                  color={selected ? colors.primary : colors.border}
                 />
               </TouchableOpacity>
             );
@@ -152,7 +152,7 @@ export default function OnboardingScreen() {
                 <MaterialIcons
                   name={opt.icon}
                   size={22}
-                  color={selected ? '#2979FF' : colors.subText}
+                  color={selected ? colors.primary : colors.subText}
                 />
                 <Text style={[styles.toggleText, selected && styles.toggleTextSelected]}>
                   {opt.label}
@@ -187,7 +187,7 @@ export default function OnboardingScreen() {
 }
 
 function makeStyles(c: Colors, fs: number) {
-  const selectedBg = c.isDark ? 'rgba(41,121,255,0.15)' : 'rgba(41,121,255,0.07)';
+  const selectedBg = c.primarySoft;
   return StyleSheet.create({
     container: {flex: 1, backgroundColor: c.bg},
     content: {paddingHorizontal: 24},
@@ -196,7 +196,7 @@ function makeStyles(c: Colors, fs: number) {
       width: 64,
       height: 64,
       borderRadius: 20,
-      backgroundColor: c.isDark ? 'rgba(41,121,255,0.15)' : '#EEF4FF',
+      backgroundColor: c.primarySoft,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: 16,
@@ -215,8 +215,8 @@ function makeStyles(c: Colors, fs: number) {
     questionNum: {
       fontSize: 12 * fs,
       fontWeight: '800',
-      color: '#2979FF',
-      backgroundColor: c.isDark ? 'rgba(41,121,255,0.15)' : '#EEF4FF',
+      color: c.primary,
+      backgroundColor: c.primarySoft,
       paddingHorizontal: 8,
       paddingVertical: 2,
       borderRadius: 6,
@@ -245,7 +245,7 @@ function makeStyles(c: Colors, fs: number) {
       shadowOffset: {width: 0, height: 1},
     },
     optionCardSelected: {
-      borderColor: '#2979FF',
+      borderColor: c.primary,
       backgroundColor: selectedBg,
     },
     radio: {
@@ -257,11 +257,11 @@ function makeStyles(c: Colors, fs: number) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    radioSelected: {borderColor: '#2979FF'},
-    radioDot: {width: 10, height: 10, borderRadius: 5, backgroundColor: '#2979FF'},
+    radioSelected: {borderColor: c.primary},
+    radioDot: {width: 10, height: 10, borderRadius: 5, backgroundColor: c.primary},
     optionTextWrap: {flex: 1},
     optionLabel: {fontSize: 15 * fs, fontWeight: '600', color: c.text, marginBottom: 2},
-    optionLabelSelected: {color: '#2979FF'},
+    optionLabelSelected: {color: c.primary},
     optionDesc: {fontSize: 12 * fs, color: c.subText},
     optionsRow: {flexDirection: 'row', gap: 12},
     toggleBtn: {
@@ -281,13 +281,13 @@ function makeStyles(c: Colors, fs: number) {
       shadowOffset: {width: 0, height: 1},
     },
     toggleBtnSelected: {
-      borderColor: '#2979FF',
+      borderColor: c.primary,
       backgroundColor: selectedBg,
     },
     toggleText: {fontSize: 15 * fs, fontWeight: '600', color: c.subText},
-    toggleTextSelected: {color: '#2979FF'},
+    toggleTextSelected: {color: c.primary},
     submitBtn: {
-      backgroundColor: '#2979FF',
+      backgroundColor: c.primary,
       borderRadius: 12,
       paddingVertical: 15,
       flexDirection: 'row',

@@ -7,6 +7,7 @@ import type {RootStackParamList} from '../navigation/AppNavigator';
 import {problemSets} from '../data/mockProblems';
 import {TYPE_LABEL, difficultyLabel, difficultyColor} from '../types/problem';
 import {useTheme, type Colors} from '../theme/ThemeContext';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 // 새 스키마 category/subcategory → 한글 토픽 라벨 (원본 UI 느낌)
 const TOPIC_KO: Record<string, string> = {
@@ -45,6 +46,7 @@ export default function ProblemBankScreen() {
       style={styles.container}
       contentContainerStyle={[styles.content, {paddingTop: insets.top + 20}]}>
       <Text style={styles.title}>문제 은행</Text>
+      <Text style={styles.subtitle}>{filtered.length}개의 문제가 기다리고 있어요</Text>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
         {topics.map(t => (
@@ -61,24 +63,38 @@ export default function ProblemBankScreen() {
         <TouchableOpacity
           key={p.id}
           style={styles.problemCard}
+          activeOpacity={0.85}
           onPress={() => navigation.navigate('ProblemSolve', {setId: p.demoSetId})}>
-          <View style={styles.cardTop}>
-            <View style={styles.badges}>
-              <View style={[styles.badge, {backgroundColor: difficultyColor(p.difficulty) + '22'}]}>
-                <Text style={[styles.badgeText, {color: difficultyColor(p.difficulty)}]}>
-                  {difficultyLabel(p.difficulty)}
+          <View style={styles.cardRow}>
+            <View style={styles.iconBox}>
+              <MaterialIcons name="code" size={22} color={colors.primary} />
+            </View>
+            <View style={styles.cardBody}>
+              <View style={styles.cardTop}>
+                <View style={styles.badges}>
+                  <View style={[styles.badge, {backgroundColor: difficultyColor(p.difficulty) + '22'}]}>
+                    <Text style={[styles.badgeText, {color: difficultyColor(p.difficulty)}]}>
+                      {difficultyLabel(p.difficulty)}
+                    </Text>
+                  </View>
+                  <View style={styles.typeBadge}>
+                    <Text style={styles.typeBadgeText}>{TYPE_LABEL[p.type]}</Text>
+                  </View>
+                </View>
+                <Text style={styles.topicText} numberOfLines={1}>
+                  {ko(p.subcategory) || ko(p.category)}
                 </Text>
               </View>
-              <View style={styles.typeBadge}>
-                <Text style={styles.typeBadgeText}>{TYPE_LABEL[p.type]}</Text>
-              </View>
+              <Text style={styles.problemTitle}>{p.title}</Text>
+              <Text style={styles.problemQuestion} numberOfLines={2}>{p.description}</Text>
             </View>
-            <Text style={styles.topicText}>{ko(p.subcategory) || ko(p.category)}</Text>
           </View>
-          <Text style={styles.problemTitle}>{p.title}</Text>
-          <Text style={styles.problemQuestion} numberOfLines={2}>{p.description}</Text>
         </TouchableOpacity>
       ))}
+
+      {filtered.length === 0 && (
+        <Text style={styles.empty}>해당 주제의 문제가 아직 없어요</Text>
+      )}
     </ScrollView>
   );
 }
@@ -87,7 +103,10 @@ function makeStyles(c: Colors, fs: number) {
   return StyleSheet.create({
     container: {flex: 1, backgroundColor: c.bg},
     content: {padding: 20, paddingBottom: 40},
-    title: {fontSize: 20 * fs, fontWeight: '700', color: c.text, marginBottom: 16},
+
+    title: {fontSize: 22 * fs, fontWeight: '800', color: c.text, marginBottom: 2},
+    subtitle: {fontSize: 13 * fs, color: c.subText, marginBottom: 16},
+
     filterScroll: {marginBottom: 16},
     filterBtn: {
       paddingHorizontal: 14,
@@ -96,23 +115,48 @@ function makeStyles(c: Colors, fs: number) {
       backgroundColor: c.filterInactive,
       marginRight: 8,
     },
-    filterActive: {backgroundColor: '#2979FF'},
+    filterActive: {backgroundColor: c.primary},
     filterText: {fontSize: 13 * fs, color: c.subText},
-    filterTextActive: {color: '#FFF', fontWeight: '600'},
-    problemCard: {backgroundColor: c.card, borderRadius: 14, padding: 16, marginBottom: 12, elevation: 2},
-    cardTop: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8},
+    filterTextActive: {color: '#FFFFFF', fontWeight: '700'},
+
+    // 문제 카드 — Home의 problemCard와 동일한 소프트 그림자/둥근 모서리
+    problemCard: {
+      backgroundColor: c.card,
+      borderRadius: 18,
+      padding: 16,
+      marginBottom: 12,
+      shadowColor: '#000',
+      shadowOpacity: 0.05,
+      shadowRadius: 10,
+      shadowOffset: {width: 0, height: 4},
+      elevation: 2,
+    },
+    cardRow: {flexDirection: 'row'},
+    iconBox: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: c.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 14,
+    },
+    cardBody: {flex: 1},
+    cardTop: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6},
     badges: {flexDirection: 'row', gap: 6},
     badge: {paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6},
-    badgeText: {fontSize: 11 * fs, fontWeight: '600'},
+    badgeText: {fontSize: 11 * fs, fontWeight: '700'},
     typeBadge: {
-      backgroundColor: c.isDark ? '#1A1F3A' : '#EEF2FF',
+      backgroundColor: c.primarySoft,
       paddingHorizontal: 8,
       paddingVertical: 3,
       borderRadius: 6,
     },
-    typeBadgeText: {fontSize: 11 * fs, color: '#2979FF', fontWeight: '600'},
-    topicText: {fontSize: 11 * fs, color: c.subText},
-    problemTitle: {fontSize: 15 * fs, fontWeight: '700', color: c.text, marginBottom: 4},
+    typeBadgeText: {fontSize: 11 * fs, color: c.primary, fontWeight: '700'},
+    topicText: {fontSize: 11 * fs, color: c.subText, flexShrink: 1, marginLeft: 8},
+    problemTitle: {fontSize: 15 * fs, fontWeight: '800', color: c.text, marginBottom: 4},
     problemQuestion: {fontSize: 13 * fs, color: c.subText, lineHeight: 20 * fs},
+
+    empty: {textAlign: 'center', color: c.subText, marginTop: 40, fontSize: 14 * fs},
   });
 }
