@@ -1,76 +1,71 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useMemo, useState} from 'react';
 import {View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {useNavigation} from '@react-navigation/native';
+import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../navigation/AppNavigator';
-import {getTodaySet} from '../data/mockProblems';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import {recommendationApi, type RecommendationResponse} from '../api/recommendationApi';
 import {problemApi} from '../api/problemApi';
-import {statsApi, type RecentRecord} from '../api/statsApi';
-import {TYPE_LABEL, difficultyLabel, difficultyColor} from '../types/problem';
+import {statsApi, type StatsData} from '../api/statsApi';
+import {userApi, type UserProfile} from '../api/userApi';
 
-// 데모용 가짜 최근 활동 (실 기록이 없을 때 표시)
-const MOCK_RECENT: RecentRecord[] = [
-  {problemId: -1, problemTitle: '짝수의 개수 세기', topic: 'Basic/Introductory', isCorrect: true, solvedAt: new Date(Date.now() - 2 * 3600000).toISOString()},
-  {problemId: -2, problemTitle: '그래프의 연결 요소 개수', topic: 'DFS/BFS', isCorrect: false, solvedAt: new Date(Date.now() - 26 * 3600000).toISOString()},
-  {problemId: -3, problemTitle: '피보나치 수 (DP)', topic: 'Dynamic Programming', isCorrect: true, solvedAt: new Date(Date.now() - 3 * 86400000).toISOString()},
-  {problemId: -4, problemTitle: '배열의 합 구하기', topic: 'Basic/Introductory', isCorrect: true, solvedAt: new Date(Date.now() - 5 * 86400000).toISOString()},
+// 추천 학습 주제 (데모) — 각 카드 색상/아이콘/문제 수
+const TOPICS: {label: string; count: number; icon: string; tint: string; accent: string; progress: number}[] = [
+  {label: '자료구조', count: 20, icon: 'format-list-bulleted', tint: '#E6F8F0', accent: '#26C281', progress: 0.4},
+  {label: '그리디', count: 18, icon: 'bolt', tint: '#E7F1FE', accent: '#3B82F6', progress: 0.3},
+  {label: '동적 계획법', count: 25, icon: 'memory', tint: '#EEEBFF', accent: '#6C5CE7', progress: 0.55},
+  {label: '이진 탐색', count: 15, icon: 'search', tint: '#FFF1E6', accent: '#FB8C00', progress: 0.2},
 ];
 
-// solvedAt(ISO) → "방금 전 / N시간 전 / N일 전"
-function formatRelative(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return '방금 전';
-  if (min < 60) return `${min}분 전`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}시간 전`;
-  return `${Math.floor(hr / 24)}일 전`;
-}
-
-const TOPIC_ICONS: {label: string; icon: string; progress: number}[] = [
-  {label: '알고리즘 마스터', icon: 'account-tree', progress: 45},
-  {label: '자료구조 연구소', icon: 'data-object', progress: 72},
-  {label: '언어 문법', icon: 'code', progress: 30},
-  {label: '모의 테스트', icon: 'assignment', progress: 10},
-];
+// 리그 티어 영문(백엔드) → 한글 표시 라벨
+const TIER_KO: Record<string, string> = {
+  BRONZE: '브론즈',
+  SILVER: '실버',
+  GOLD: '골드',
+  PLATINUM: '플래티넘',
+  DIAMOND: '다이아',
+};
 
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [streak, setStreak] = useState(0);
-  const [todaySolved, setTodaySolved] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [rec, setRec] = useState<RecommendationResponse | null>(null);
-  const [recent, setRecent] = useState<RecentRecord[]>([]);
-  const todaySet = getTodaySet();
+  const [_rec, setRec] = useState<RecommendationResponse | null>(null);
+  const [stats, setStats] = useState<StatsData | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [todayCount, setTodayCount] = useState(0); // 오늘 푼 문제 수
   const insets = useSafeAreaInsets();
   const {colors, fontScale} = useTheme();
   const styles = useMemo(() => makeStyles(colors, fontScale), [colors, fontScale]);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  // 화면에 들어올 때마다 갱신 (문제 풀고 돌아오면 오늘 푼 문제 수 반영)
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, []),
+  );
 
   const loadData = async () => {
     const saved = await AsyncStorage.getItem('streak');
-    const lastDate = await AsyncStorage.getItem('lastSolvedDate');
     const token = await AsyncStorage.getItem('accessToken');
     const today = new Date().toISOString().split('T')[0];
+    const tc = await AsyncStorage.getItem(`solvedCount_${today}`);
+    setTodayCount(tc ? parseInt(tc, 10) : 0);
     if (saved) {setStreak(parseInt(saved, 10));}
-    if (lastDate === today) {setTodaySolved(true);}
     setIsLoggedIn(!!token);
     if (token) {
       try {
         setRec(await recommendationApi.get(5));
       } catch {}
       try {
-        const stats = await statsApi.getMyStats();
-        setRecent(stats.recentRecords ?? []);
+        setStats(await statsApi.getMyStats());
+      } catch {}
+      try {
+        setProfile(await userApi.getMe());
       } catch {}
     }
   };
@@ -94,205 +89,145 @@ export default function HomeScreen() {
       }
       navigation.navigate('ProblemSolve', {problems});
     } catch (e: any) {
-      Alert.alert('오류', e?.message || '서버 오류이거나 네트워크 문제예요.');
+      const status = e?.status;
+      const detail = status
+        ? `서버에서 요청을 처리하지 못했어요. (오류 ${status})\n잠시 후 다시 시도하거나, 다시 로그인해 주세요.`
+        : '서버에 연결하지 못했어요. 네트워크 상태를 확인해 주세요.';
+      Alert.alert('문제를 불러오지 못했어요', detail);
     } finally {
       setStarting(false);
     }
   };
 
-  const summary = rec?.summary;
-  // 실 기록이 있으면 사용, 없으면 데모용 가짜 데이터
-  const displayRecent = recent.length > 0 ? recent : MOCK_RECENT;
+  // 표시값: 실제 데이터 우선, 없으면 목업 숫자로 폴백
+  const displayStreak = stats?.currentStreak ?? (streak || 7);
+  const solvedCount = stats?.totalSolved ?? 42;
+  const accuracy = stats?.accuracyRate ?? 68;
+  const tier = profile?.tier ? TIER_KO[profile.tier] ?? profile.tier : '브론즈'; // 실제 티어(/api/users/me)
+
+  // 오늘의 목표(문제 갯수 기준): 하루 목표 문제 수 대비 "오늘" 푼 문제 수
+  const dailyGoal = 3;
+  const goalSolved = Math.min(todayCount, dailyGoal);
+  const goalPct = Math.round((goalSolved / dailyGoal) * 100);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, {paddingTop: insets.top + 20}]}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, {paddingTop: insets.top + 8}]}>
       {/* 헤더 */}
       <View style={styles.header}>
-        <Text style={styles.appName}>하루코딩</Text>
-        {isLoggedIn ? (
-          <View style={styles.streakBadge}>
-            <MaterialCommunityIcons name="fire" size={18} color="#E65100" />
-            <Text style={styles.streakText}>{streak}일</Text>
+        <TouchableOpacity onPress={() => Alert.alert('메뉴', '메뉴는 준비 중이에요.')} hitSlop={8}>
+          <MaterialIcons name="menu" size={26} color={colors.text} />
+        </TouchableOpacity>
+        <View style={styles.brandWrap}>
+          <Text style={styles.brand}>하루코딩</Text>
+          <Text style={styles.brandTag}> {'</>'}</Text>
+        </View>
+        <TouchableOpacity onPress={() => Alert.alert('알림', '새로운 알림이 없어요.')} hitSlop={8}>
+          <View>
+            <MaterialIcons name="notifications-none" size={26} color={colors.text} />
+            <View style={styles.bellDot} />
           </View>
-        ) : (
-          <TouchableOpacity style={styles.streakBadge} onPress={() => navigation.navigate('Login')}>
-            <MaterialIcons name="lock" size={16} color={colors.subText} />
-            <Text style={[styles.streakText, {color: colors.subText}]}>로그인</Text>
-          </TouchableOpacity>
-        )}
+        </TouchableOpacity>
       </View>
 
-      {/* 오늘의 세트 카드 (데모) */}
-      {todaySet ? (
-        <View style={styles.todayCard}>
-          <Text style={styles.todayLabel}>오늘의 코딩 도전</Text>
-          <View style={styles.difficultyBadge}>
-            <Text style={[styles.difficultyText, {color: difficultyColor(todaySet.difficulty)}]}>
-              ● {difficultyLabel(todaySet.difficulty)}
-            </Text>
+      {/* 오늘의 목표 (컴팩트) */}
+      <View style={styles.goalCard}>
+        <View style={styles.goalTopRow}>
+          <Text style={styles.goalLabel}>오늘의 목표</Text>
+          <View style={styles.streakChip}>
+            <MaterialCommunityIcons name="fire" size={14} color="#FF6B35" />
+            <Text style={styles.streakChipText}>{displayStreak}일 연속</Text>
           </View>
-          <Text style={styles.todayTitle}>{todaySet.title}</Text>
-
-          <View style={styles.setInfoRow}>
-            <View style={styles.setInfoItem}>
-              <MaterialIcons name="format-list-numbered" size={14} color="#90B4CE" />
-              <Text style={styles.setInfoText}>{todaySet.problems.length}문제</Text>
-            </View>
-            <View style={styles.setInfoItem}>
-              <MaterialIcons name="topic" size={14} color="#90B4CE" />
-              <Text style={styles.setInfoText}>
-                {[...new Set(todaySet.problems.map(p => p.subcategory ?? p.category))].join(' · ')}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.typeBadgeRow}>
-            {todaySet.problems.map((p, i) => (
-              <View key={i} style={styles.typeBadge}>
-                <Text style={styles.typeBadgeText}>{TYPE_LABEL[p.type]}</Text>
-              </View>
-            ))}
-          </View>
-
-          <TouchableOpacity
-            style={[styles.solveButton, todaySolved && styles.solveButtonDone, starting && {opacity: 0.7}]}
-            onPress={handleStartSet}
-            disabled={starting}>
-            <View style={styles.solveButtonInner}>
-              {starting ? (
-                <>
-                  <ActivityIndicator color="#FFF" />
-                  <Text style={styles.solveButtonText}>문제 준비 중...</Text>
-                </>
-              ) : (
-                <>
-                  <MaterialIcons name={todaySolved ? 'check-circle' : 'emoji-events'} size={18} color="#FFF" />
-                  <Text style={styles.solveButtonText}>
-                    {todaySolved ? '완료 · 다시 풀기' : '세트 시작하기'}
-                  </Text>
-                </>
-              )}
-            </View>
-          </TouchableOpacity>
         </View>
-      ) : (
-        <View style={styles.todayCard}>
-          <Text style={styles.todayLabel}>오늘의 세트가 아직 준비되지 않았어요</Text>
-        </View>
-      )}
-
-      {/* 맞춤 추천 (역량 기반) — 데이터 없어도 섹션은 항상 노출 */}
-      <Text style={styles.sectionTitle}>맞춤 추천</Text>
-      {summary ? (
-        <>
-          {/* 역량 요약 미니 카드 */}
-          <View style={styles.competencyCard}>
-            <View style={styles.competencyRow}>
-              <Competency label="추정 레벨" value={difficultyLabel(summary.estimatedLevel)} />
-              <Competency label="정답률" value={`${summary.accuracyRate}%`} />
-              <Competency label="푼 문제" value={`${summary.totalSolved}개`} />
-            </View>
-            {summary.weakAreas.length > 0 && (
-              <View style={styles.chipRow}>
-                <Text style={styles.chipCaption}>보완 필요</Text>
-                {summary.weakAreas.slice(0, 3).map(w => (
-                  <View key={w.area} style={styles.chip}>
-                    <Text style={styles.chipText}>{w.area}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
+        <View style={styles.goalMidRow}>
+          <View style={styles.goalValueRow}>
+            <Text style={styles.goalValue}>{goalSolved}</Text>
+            <Text style={styles.goalUnit}> / {dailyGoal}문제</Text>
           </View>
-
-          {/* 추천 문제 카드 */}
-          {rec && rec.recommendations.length > 0 ? (
-            rec.recommendations.map(r => (
-              <TouchableOpacity
-                key={r.problemId}
-                style={styles.recCard}
-                onPress={() => navigation.navigate('ProblemSolve', {problemId: r.problemId})}>
-                <View style={styles.recTop}>
-                  <View style={styles.recBadges}>
-                    <View style={[styles.recBadge, {backgroundColor: difficultyColor(r.difficulty) + '22'}]}>
-                      <Text style={[styles.recBadgeText, {color: difficultyColor(r.difficulty)}]}>
-                        {difficultyLabel(r.difficulty)}
-                      </Text>
-                    </View>
-                    <View style={styles.recTypeBadge}>
-                      <Text style={styles.recTypeText}>{TYPE_LABEL[r.type]}</Text>
-                    </View>
-                    {r.review && (
-                      <View style={styles.reviewBadge}>
-                        <Text style={styles.reviewBadgeText}>복습</Text>
-                      </View>
-                    )}
-                  </View>
-                  <MaterialIcons name="chevron-right" size={20} color={colors.subText} />
-                </View>
-                <Text style={styles.recTitle}>{r.title}</Text>
-                <View style={styles.recReasonRow}>
-                  <MaterialIcons name="lightbulb" size={14} color="#FFC107" />
-                  <Text style={styles.recReason}>{r.reason}</Text>
-                </View>
-              </TouchableOpacity>
-            ))
-          ) : (
-            <View style={styles.recEmpty}>
-              <Text style={styles.recEmptyText}>문제를 풀면 맞춤 추천이 시작돼요</Text>
-            </View>
-          )}
-        </>
-      ) : (
-        <View style={styles.competencyEmpty}>
-          <MaterialIcons name="insights" size={28} color="#2979FF" />
-          <Text style={styles.competencyEmptyTitle}>문제를 풀면 역량을 평가해드려요</Text>
-          <Text style={styles.competencyEmptyDesc}>
-            {isLoggedIn
-              ? '문제를 풀수록 약점을 분석해 맞춤 문제를 추천해드려요.'
-              : '로그인하고 문제를 풀면 맞춤 추천이 시작돼요.'}
+          <Text style={styles.goalDone}>
+            {goalPct >= 100 ? '목표 달성! 🎉' : `${dailyGoal - goalSolved}문제 남음`}
           </Text>
-          {!isLoggedIn && (
-            <TouchableOpacity
-              style={styles.competencyEmptyBtn}
-              onPress={() => navigation.navigate('Login')}>
-              <Text style={styles.competencyEmptyBtnText}>로그인하기</Text>
-            </TouchableOpacity>
-          )}
         </View>
-      )}
-
-      {/* 주제 탐색 */}
-      <Text style={styles.sectionTitle}>주제 탐색</Text>
-      <View style={styles.topicGrid}>
-        {TOPIC_ICONS.map(topic => (
-          <View key={topic.label} style={styles.topicCard}>
-            <MaterialIcons name={topic.icon} size={24} color="#2979FF" style={styles.topicIcon} />
-            <Text style={styles.topicLabel}>{topic.label}</Text>
-            <Text style={styles.topicProgress}>{topic.progress}% 완료</Text>
-          </View>
-        ))}
+        <View style={styles.goalBarTrack}>
+          <View style={[styles.goalBarFill, {width: `${goalPct}%`}]} />
+        </View>
       </View>
 
-      {/* 최근 활동 */}
-      {displayRecent.length > 0 && (
-        <>
-          <Text style={styles.sectionTitle}>최근 활동</Text>
-          {displayRecent.map((r, i) => (
-            <View key={i} style={styles.activityItem}>
-              <MaterialIcons
-                name={r.isCorrect ? 'check-circle' : 'cancel'}
-                size={22}
-                color={r.isCorrect ? '#4CAF50' : '#F44336'}
-                style={styles.activityIcon}
-              />
-              <View style={styles.activityInfo}>
-                <Text style={styles.activityTitle} numberOfLines={1}>{r.problemTitle}</Text>
-                <Text style={styles.activityMeta}>{r.topic} · {formatRelative(r.solvedAt)}</Text>
-              </View>
+      {/* 오늘의 문제 */}
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>오늘의 문제</Text>
+        <TouchableOpacity style={styles.moreBtn} onPress={() => Alert.alert('더보기', '문제 은행 탭에서 더 풀어보세요!')}>
+          <Text style={styles.moreText}>더보기</Text>
+          <MaterialIcons name="chevron-right" size={18} color={colors.subText} />
+        </TouchableOpacity>
+      </View>
+      <View style={styles.problemCard}>
+        <View style={styles.todayRow}>
+          <View style={styles.problemIconBox}>
+            <MaterialIcons name="bolt" size={26} color={colors.primary} />
+          </View>
+          <View style={styles.todayTextWrap}>
+            <Text style={styles.todayTitle}>오늘의 추천 문제</Text>
+            <Text style={styles.todaySub}>지금 실력에 맞는 문제를 받아보세요</Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          style={[styles.solveBtn, starting && styles.solveBtnDisabled]}
+          onPress={handleStartSet}
+          disabled={starting}>
+          {starting ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <Text style={styles.solveBtnText}>오늘의 문제 풀기!</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* 나의 실력 */}
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>나의 실력</Text>
+        <TouchableOpacity style={styles.moreBtn} onPress={() => Alert.alert('전체 통계', '학습 통계 탭에서 확인하세요!')}>
+          <Text style={styles.moreText}>전체 통계</Text>
+          <MaterialIcons name="chevron-right" size={18} color={colors.subText} />
+        </TouchableOpacity>
+      </View>
+      <View style={styles.statsCard}>
+        <Stat icon="event-available" iconColor="#26C281" value={`${displayStreak}일`} label="연속 도전" colors={colors} fs={fontScale} />
+        <View style={styles.statDivider} />
+        <Stat icon="bar-chart" iconColor="#3B82F6" value={String(solvedCount)} label="문제 해결" colors={colors} fs={fontScale} />
+        <View style={styles.statDivider} />
+        <Stat icon="military-tech" iconColor="#CD7F32" value={tier} label="현재 티어" colors={colors} fs={fontScale} />
+        <View style={styles.statDivider} />
+        <Stat icon="pie-chart" iconColor="#6C5CE7" value={`${accuracy}%`} label="정답률" colors={colors} fs={fontScale} />
+      </View>
+
+      {/* 추천 학습 주제 */}
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>추천 학습 주제</Text>
+        <TouchableOpacity style={styles.moreBtn} onPress={() => Alert.alert('더보기', '더 많은 주제가 곧 추가돼요!')}>
+          <Text style={styles.moreText}>더보기</Text>
+          <MaterialIcons name="chevron-right" size={18} color={colors.subText} />
+        </TouchableOpacity>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.topicRow}>
+        {TOPICS.map(t => (
+          <TouchableOpacity
+            key={t.label}
+            style={[styles.topicCard, {backgroundColor: t.tint}]}
+            onPress={handleStartSet}>
+            <View style={styles.topicIconBox}>
+              <MaterialIcons name={t.icon} size={20} color={t.accent} />
             </View>
-          ))}
-        </>
-      )}
+            <Text style={styles.topicLabel}>{t.label}</Text>
+            <Text style={styles.topicCount}>{t.count}문제</Text>
+            <View style={styles.topicBarTrack}>
+              <View style={[styles.topicBarFill, {width: `${t.progress * 100}%`, backgroundColor: t.accent}]} />
+            </View>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       {/* 비로그인 안내 */}
       {!isLoggedIn && (
@@ -302,17 +237,22 @@ export default function HomeScreen() {
           <MaterialIcons name="chevron-right" size={20} color={colors.subText} />
         </TouchableOpacity>
       )}
+
+      <View style={styles.bottomSpacer} />
     </ScrollView>
   );
 }
 
-function Competency({label, value}: {label: string; value: string}) {
-  const {colors, fontScale} = useTheme();
-  const styles = useMemo(() => makeStyles(colors, fontScale), [colors, fontScale]);
+// 나의 실력 통계 한 칸
+function Stat({icon, iconColor, value, label, colors, fs}: {
+  icon: string; iconColor: string; value: string; label: string; colors: Colors; fs: number;
+}) {
+  const styles = makeStyles(colors, fs);
   return (
-    <View style={styles.competencyItem}>
-      <Text style={styles.competencyValue}>{value}</Text>
-      <Text style={styles.competencyLabel}>{label}</Text>
+    <View style={styles.statItem}>
+      <MaterialIcons name={icon} size={22} color={iconColor} />
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
@@ -320,110 +260,119 @@ function Competency({label, value}: {label: string; value: string}) {
 function makeStyles(c: Colors, fs: number) {
   return StyleSheet.create({
     container: {flex: 1, backgroundColor: c.bg},
-    content: {padding: 20, paddingBottom: 40},
-    header: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20},
-    appName: {fontSize: 22 * fs, fontWeight: '700', color: c.text},
-    streakBadge: {
-      flexDirection: 'row', alignItems: 'center',
-      backgroundColor: c.isDark ? '#2A1A00' : '#FFF3E0',
-      paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, gap: 4,
-    },
-    streakText: {fontSize: 14 * fs, fontWeight: '700', color: '#E65100'},
-    todayCard: {backgroundColor: '#1E3A5F', borderRadius: 16, padding: 20, marginBottom: 24},
-    todayLabel: {fontSize: 12 * fs, color: '#90B4CE', marginBottom: 6},
-    difficultyBadge: {marginBottom: 8},
-    difficultyText: {fontSize: 13 * fs, fontWeight: '600'},
-    todayTitle: {fontSize: 18 * fs, fontWeight: '700', color: '#FFFFFF', marginBottom: 10},
-    setInfoRow: {flexDirection: 'row', gap: 16, marginBottom: 12},
-    setInfoItem: {flexDirection: 'row', alignItems: 'center', gap: 4},
-    setInfoText: {fontSize: 12 * fs, color: '#90B4CE'},
-    typeBadgeRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 16},
-    typeBadge: {backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3},
-    typeBadgeText: {fontSize: 11 * fs, color: '#B0CDE4', fontWeight: '600'},
-    solveButton: {backgroundColor: '#2979FF', borderRadius: 10, paddingVertical: 14, alignItems: 'center'},
-    solveButtonDone: {backgroundColor: '#4CAF50'},
-    solveButtonInner: {flexDirection: 'row', alignItems: 'center', gap: 8},
-    solveButtonText: {color: '#FFFFFF', fontWeight: '700', fontSize: 15 * fs},
-    sectionTitle: {fontSize: 16 * fs, fontWeight: '700', color: c.text, marginBottom: 12},
+    content: {padding: 20, paddingBottom: 32},
 
-    // 역량 요약
-    competencyCard: {
-      backgroundColor: c.card, borderRadius: 14, padding: 16, marginBottom: 12, elevation: 2,
+    // 헤더
+    header: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16},
+    brandWrap: {flexDirection: 'row', alignItems: 'center'},
+    brand: {fontSize: 20 * fs, fontWeight: '800', color: c.text},
+    brandTag: {fontSize: 18 * fs, fontWeight: '800', color: c.primary},
+    bellDot: {
+      position: 'absolute', top: 1, right: 2, width: 8, height: 8,
+      borderRadius: 4, backgroundColor: c.primary, borderWidth: 1.5, borderColor: c.bg,
     },
-    competencyRow: {flexDirection: 'row', justifyContent: 'space-around'},
-    competencyItem: {alignItems: 'center', gap: 2},
-    competencyValue: {fontSize: 18 * fs, fontWeight: '800', color: c.text},
-    competencyLabel: {fontSize: 11 * fs, color: c.subText},
-    chipRow: {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 14},
-    chipCaption: {fontSize: 11 * fs, color: c.subText, marginRight: 2},
-    chip: {
-      backgroundColor: 'rgba(255,112,67,0.14)', borderRadius: 6,
-      paddingHorizontal: 8, paddingVertical: 3,
-    },
-    chipText: {fontSize: 11 * fs, fontWeight: '700', color: '#FF7043'},
 
-    // 추천 문제 카드
-    recCard: {
-      backgroundColor: c.card, borderRadius: 14, padding: 16, marginBottom: 10,
-      borderLeftWidth: 3, borderLeftColor: '#2979FF', elevation: 1,
+    // 히어로
+    hero: {flexDirection: 'row', alignItems: 'center', marginBottom: 18},
+    heroTextWrap: {flex: 1},
+    heroTitle: {fontSize: 24 * fs, fontWeight: '800', color: c.text, lineHeight: 32 * fs},
+    heroAccent: {color: c.primary},
+    heroArt: {width: 120, height: 100, alignItems: 'center', justifyContent: 'center'},
+    timerBubble: {
+      position: 'absolute', top: 0, right: 0, backgroundColor: c.card,
+      borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6,
+      shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: {width: 0, height: 2}, elevation: 3,
     },
-    recTop: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8},
-    recBadges: {flexDirection: 'row', gap: 6, alignItems: 'center'},
-    recBadge: {paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6},
-    recBadgeText: {fontSize: 11 * fs, fontWeight: '600'},
-    recTypeBadge: {
-      backgroundColor: c.isDark ? '#1A1F3A' : '#EEF2FF',
-      paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
-    },
-    recTypeText: {fontSize: 11 * fs, color: '#2979FF', fontWeight: '600'},
-    reviewBadge: {
-      backgroundColor: 'rgba(255,152,0,0.16)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
-    },
-    reviewBadgeText: {fontSize: 11 * fs, color: '#FB8C00', fontWeight: '700'},
-    recTitle: {fontSize: 15 * fs, fontWeight: '700', color: c.text, marginBottom: 6},
-    recReasonRow: {flexDirection: 'row', alignItems: 'flex-start', gap: 6},
-    recReason: {flex: 1, fontSize: 12 * fs, color: c.subText, lineHeight: 18 * fs},
-    recEmpty: {backgroundColor: c.card, borderRadius: 12, padding: 20, marginBottom: 12, alignItems: 'center'},
-    recEmptyText: {fontSize: 13 * fs, color: c.subText},
+    timerBubbleText: {fontSize: 15 * fs, fontWeight: '800', color: c.primary},
+    heroEmoji: {fontSize: 56, marginTop: 18},
 
-    // 역량 평가 빈 상태
-    competencyEmpty: {
-      backgroundColor: c.card, borderRadius: 14, padding: 24, marginBottom: 24,
-      alignItems: 'center', gap: 6,
-      borderWidth: 1, borderColor: c.border, borderStyle: 'dashed',
+    // 오늘의 목표 (컴팩트)
+    goalCard: {
+      backgroundColor: c.card, borderRadius: 16, padding: 14, marginBottom: 18,
+      shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: {width: 0, height: 2}, elevation: 1,
     },
-    competencyEmptyTitle: {fontSize: 15 * fs, fontWeight: '700', color: c.text, marginTop: 4},
-    competencyEmptyDesc: {fontSize: 13 * fs, color: c.subText, textAlign: 'center', lineHeight: 19 * fs},
-    competencyEmptyBtn: {
-      marginTop: 10, backgroundColor: '#2979FF', borderRadius: 10,
-      paddingVertical: 10, paddingHorizontal: 28,
+    goalTopRow: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8},
+    goalLabel: {fontSize: 13 * fs, fontWeight: '700', color: c.text},
+    streakChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      backgroundColor: 'rgba(255,107,53,0.12)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3,
     },
-    competencyEmptyBtnText: {color: '#FFF', fontWeight: '700', fontSize: 14 * fs},
+    streakChipText: {fontSize: 11 * fs, fontWeight: '700', color: '#FF6B35'},
+    goalMidRow: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8},
+    goalValueRow: {flexDirection: 'row', alignItems: 'baseline'},
+    goalValue: {fontSize: 22 * fs, fontWeight: '900', color: c.primary},
+    goalUnit: {fontSize: 13 * fs, fontWeight: '600', color: c.subText},
+    goalDone: {fontSize: 12 * fs, color: c.subText},
+    goalBarTrack: {height: 6, borderRadius: 3, backgroundColor: c.border, overflow: 'hidden'},
+    goalBarFill: {height: '100%', borderRadius: 3, backgroundColor: c.primary},
 
-    // 주제 탐색
-    topicGrid: {flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24, marginTop: 12},
-    topicCard: {
-      width: '47%', backgroundColor: c.card, borderRadius: 12, padding: 16,
-      shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
-    },
-    topicIcon: {marginBottom: 6},
-    topicLabel: {fontSize: 13 * fs, fontWeight: '600', color: c.text, marginBottom: 4},
-    topicProgress: {fontSize: 11 * fs, color: c.subText},
+    // 섹션 헤더
+    sectionHead: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12},
+    sectionTitle: {fontSize: 17 * fs, fontWeight: '800', color: c.text},
+    moreBtn: {flexDirection: 'row', alignItems: 'center'},
+    moreText: {fontSize: 13 * fs, color: c.subText},
 
+    // 오늘의 문제 카드
+    problemCard: {
+      backgroundColor: c.card, borderRadius: 20, padding: 18, marginBottom: 24,
+      shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: {width: 0, height: 4}, elevation: 2,
+    },
+    problemTop: {flexDirection: 'row', marginBottom: 16},
+    problemIconBox: {
+      width: 52, height: 52, borderRadius: 14, backgroundColor: c.primarySoft,
+      alignItems: 'center', justifyContent: 'center', marginRight: 14,
+    },
+    problemInfo: {flex: 1},
+    diffBadge: {alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, marginBottom: 4},
+    diffBadgeText: {fontSize: 11 * fs, fontWeight: '700'},
+    problemTitle: {fontSize: 16 * fs, fontWeight: '800', color: c.text, marginBottom: 4},
+    problemDesc: {fontSize: 13 * fs, color: c.subText, lineHeight: 19 * fs},
+    problemMetaRow: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16},
+    metaItem: {flex: 1},
+    metaLabel: {fontSize: 11 * fs, color: c.subText, marginBottom: 3},
+    metaValueRow: {flexDirection: 'row', alignItems: 'center'},
+    metaIcon: {marginRight: 3},
+    metaValue: {fontSize: 13 * fs, fontWeight: '700', color: c.text},
+    solveBtn: {backgroundColor: c.primary, borderRadius: 14, paddingVertical: 15, alignItems: 'center'},
+    solveBtnDisabled: {opacity: 0.7},
+    solveBtnText: {color: '#FFFFFF', fontSize: 15 * fs, fontWeight: '800'},
+
+    // 오늘의 문제 (간소화 카드)
+    todayRow: {flexDirection: 'row', alignItems: 'center', marginBottom: 16},
+    todayTextWrap: {flex: 1},
+    todayTitle: {fontSize: 16 * fs, fontWeight: '800', color: c.text, marginBottom: 2},
+    todaySub: {fontSize: 13 * fs, color: c.subText},
+
+    // 나의 실력
+    statsCard: {
+      flexDirection: 'row', backgroundColor: c.card, borderRadius: 20, paddingVertical: 18, marginBottom: 24,
+      alignItems: 'center',
+      shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: {width: 0, height: 4}, elevation: 2,
+    },
+    statItem: {flex: 1, alignItems: 'center', gap: 4},
+    statValue: {fontSize: 16 * fs, fontWeight: '800', color: c.text},
+    statLabel: {fontSize: 11 * fs, color: c.subText},
+    statDivider: {width: 1, height: 36, backgroundColor: c.border},
+
+    // 추천 학습 주제
+    topicRow: {gap: 12, paddingRight: 4, paddingBottom: 4},
+    topicCard: {width: 130, borderRadius: 18, padding: 16},
+    topicIconBox: {
+      width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+      marginBottom: 12, backgroundColor: '#FFFFFF',
+    },
+    topicLabel: {fontSize: 14 * fs, fontWeight: '800', color: '#1A1A2E', marginBottom: 2},
+    topicCount: {fontSize: 12 * fs, color: '#5A5A70', marginBottom: 12},
+    topicBarTrack: {height: 5, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.08)', overflow: 'hidden'},
+    topicBarFill: {height: '100%', borderRadius: 3},
+
+    // 비로그인 배너
     loginBanner: {
       flexDirection: 'row', alignItems: 'center', backgroundColor: c.card,
-      borderRadius: 10, padding: 16, gap: 10,
+      borderRadius: 14, padding: 16, gap: 10, marginTop: 4,
     },
     loginBannerText: {flex: 1, fontSize: 13 * fs, color: c.subText},
 
-    // 최근 활동
-    activityItem: {
-      flexDirection: 'row', alignItems: 'center', backgroundColor: c.card,
-      borderRadius: 10, padding: 14, marginBottom: 8,
-    },
-    activityIcon: {marginRight: 12},
-    activityInfo: {flex: 1},
-    activityTitle: {fontSize: 14 * fs, fontWeight: '600', color: c.text},
-    activityMeta: {fontSize: 12 * fs, color: c.subText, marginTop: 2},
+    bottomSpacer: {height: 12},
   });
 }

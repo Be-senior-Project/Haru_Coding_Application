@@ -12,6 +12,7 @@ export interface UserProfile {
   correctCount: number;
   accuracyRate: number;
   preferredLanguage?: string;
+  tier?: string; // 리그 티어 (BRONZE/SILVER/GOLD/PLATINUM/DIAMOND)
 }
 
 export const userApi = {

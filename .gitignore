@@ -74,3 +74,6 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Expo 로컬 캐시/로그
+.expo/

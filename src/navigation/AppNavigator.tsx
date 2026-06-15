@@ -8,6 +8,7 @@ import HomeScreen from '../screens/HomeScreen';
 import StatsScreen from '../screens/StatsScreen';
 import ProblemBankScreen from '../screens/ProblemBankScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import ProfileEditScreen from '../screens/ProfileEditScreen';
 import ProblemSolveScreen from '../screens/ProblemSolveScreen';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
@@ -22,15 +23,16 @@ export type RootStackParamList = {
   Onboarding: undefined;
   OnboardingResult: {difficulty: string; reason: string; focusPoint: string};
   Main: undefined;
+  ProfileEdit: undefined;
   // problems: AI 생성문제 직접 전달 / problemId: 백엔드 실 문제 1개 / setId: 목 데모
   ProblemSolve: {setId?: string; problemId?: number; initialIndex?: number; problems?: Problem[]};
 };
 
 export type TabParamList = {
   홈: undefined;
-  통계: undefined;
-  '문제 은행': undefined;
-  '내 정보': undefined;
+  문제: undefined;
+  '학습 통계': undefined;
+  마이페이지: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -38,9 +40,9 @@ const Tab = createBottomTabNavigator<TabParamList>();
 
 const TAB_ICON_NAMES: Record<string, string> = {
   홈: 'home',
-  통계: 'bar-chart',
-  '문제 은행': 'menu-book',
-  '내 정보': 'person',
+  문제: 'layers',
+  '학습 통계': 'bar-chart',
+  마이페이지: 'person-outline',
 };
 
 function TabNavigator() {
@@ -51,7 +53,7 @@ function TabNavigator() {
         tabBarIcon: ({focused, color}) => (
           <MaterialIcons name={TAB_ICON_NAMES[route.name]} size={focused ? 26 : 22} color={color} />
         ),
-        tabBarActiveTintColor: '#2979FF',
+        tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: '#9E9E9E',
         tabBarStyle: {
           backgroundColor: colors.card,
@@ -63,9 +65,9 @@ function TabNavigator() {
         headerShown: false,
       })}>
       <Tab.Screen name="홈" component={HomeScreen} />
-      <Tab.Screen name="통계" component={StatsScreen} />
-      <Tab.Screen name="문제 은행" component={ProblemBankScreen} />
-      <Tab.Screen name="내 정보" component={ProfileScreen} />
+      <Tab.Screen name="문제" component={ProblemBankScreen} />
+      <Tab.Screen name="학습 통계" component={StatsScreen} />
+      <Tab.Screen name="마이페이지" component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
@@ -78,12 +80,12 @@ export default function AppNavigator() {
     ...baseTheme,
     colors: {
       ...baseTheme.colors,
-      primary: '#2979FF',
+      primary: colors.primary,
       background: colors.bg,
       card: colors.card,
       text: colors.text,
       border: colors.border,
-      notification: '#2979FF',
+      notification: colors.primary,
     },
   };
 
@@ -95,6 +97,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         <Stack.Screen name="OnboardingResult" component={OnboardingResultScreen} />
         <Stack.Screen name="Main" component={TabNavigator} />
+        <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} />
         <Stack.Screen name="ProblemSolve" component={ProblemSolveScreen} />
       </Stack.Navigator>
     </NavigationContainer>

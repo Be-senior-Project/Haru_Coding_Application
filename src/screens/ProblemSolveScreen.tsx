@@ -65,6 +65,15 @@ export default function ProblemSolveScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [startedAt, setStartedAt] = useState(Date.now());
 
+  // 경과 시간 타이머 (1초마다 갱신, 문제 바뀌면 startedAt 리셋되어 자동 초기화)
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const elapsedSec = Math.max(0, Math.floor((nowTick - startedAt) / 1000));
+  const mmss = `${String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:${String(elapsedSec % 60).padStart(2, '0')}`;
+
   // 채점 결과 (목=로컬, 실=백엔드 응답)
   const [isCorrect, setIsCorrect] = useState(false);
   const [resultAnswer, setResultAnswer] = useState<string | string[] | null>(null);
@@ -115,7 +124,7 @@ export default function ProblemSolveScreen() {
   if (loading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color="#2979FF" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -212,14 +221,33 @@ export default function ProblemSolveScreen() {
       contentContainerStyle={[styles.content, {paddingTop: insets.top + 16}]}>
 
       {/* 상단 바 */}
-      <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+      <View style={styles.navRow}>
+        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
+          <MaterialIcons name="arrow-back-ios-new" size={22} color={colors.text} />
         </TouchableOpacity>
+        <Text style={styles.navTitle}>문제 풀기</Text>
+        <View style={styles.navRight}>
+          <TouchableOpacity onPress={() => Alert.alert('북마크', '북마크에 저장했어요.')} hitSlop={8}>
+            <MaterialIcons name="bookmark-border" size={22} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => Alert.alert('메뉴', '준비 중이에요.')} hitSlop={8}>
+            <MaterialIcons name="more-vert" size={22} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* 진행 + 타이머 */}
+      <View style={styles.progressRow}>
+        <Text style={styles.progressLabel}>
+          문제 <Text style={styles.progressNum}>{currentIndex + 1}</Text> / {problems.length}
+        </Text>
         <View style={styles.progressBarWrap}>
           <View style={[styles.progressFill, {width: `${progress * 100}%`}]} />
         </View>
-        <Text style={styles.progressText}>{currentIndex + 1} / {problems.length}</Text>
+        <View style={styles.timerWrap}>
+          <MaterialIcons name="timer" size={15} color={colors.subText} />
+          <Text style={styles.timerText}>{mmss}</Text>
+        </View>
       </View>
 
       <View style={styles.typeBadge}>
@@ -284,16 +312,33 @@ export default function ProblemSolveScreen() {
       )}
 
       {!submitted ? (
-        <TouchableOpacity
-          style={[styles.submitBtn, submitting && styles.btnDisabled]}
-          onPress={handleSubmit}
-          disabled={submitting}>
-          {submitting ? (
-            <ActivityIndicator color="#FFF" />
-          ) : (
-            <Text style={styles.submitBtnText}>정답 확인하기</Text>
-          )}
-        </TouchableOpacity>
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={styles.runBtn}
+            onPress={() => Alert.alert('실행', '코드 실행 기능은 준비 중이에요.')}>
+            <MaterialIcons name="play-arrow" size={18} color={colors.text} />
+            <Text style={styles.runBtnText}>실행</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.hintBtn}
+            onPress={() => Alert.alert('AI 힌트', '곧 제공될 기능이에요.')}>
+            <MaterialIcons name="lightbulb-outline" size={18} color={colors.primary} />
+            <Text style={styles.hintBtnText}>AI 힌트</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.submitBtn, styles.submitFlex, submitting && styles.btnDisabled]}
+            onPress={handleSubmit}
+            disabled={submitting}>
+            {submitting ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <>
+                <MaterialIcons name="send" size={16} color="#FFF" />
+                <Text style={styles.submitBtnText}>제출하기</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
       ) : (
         <View style={[styles.resultCard, isCorrect ? styles.correctCard : styles.wrongCard]}>
           <Text style={styles.resultTitle}>{isCorrect ? '🎉 정답!' : '😢 오답'}</Text>
@@ -382,15 +427,23 @@ function makeStyles(c: Colors, fs: number) {
     container: {flex: 1, backgroundColor: c.bg},
     center: {justifyContent: 'center', alignItems: 'center'},
     content: {padding: 20, paddingBottom: 60},
-    topBar: {flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 12},
+    // 상단 네비 행
+    navRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18},
+    navTitle: {fontSize: 17 * fs, fontWeight: '800', color: c.text},
+    navRight: {flexDirection: 'row', alignItems: 'center', gap: 14},
+    // 진행 + 타이머
+    progressRow: {flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 10},
+    progressLabel: {fontSize: 12 * fs, color: c.subText},
+    progressNum: {color: c.primary, fontWeight: '800'},
     progressBarWrap: {flex: 1, height: 8, backgroundColor: c.border, borderRadius: 4, overflow: 'hidden'},
-    progressFill: {height: '100%', backgroundColor: '#2979FF', borderRadius: 4},
-    progressText: {fontSize: 12, color: c.subText, minWidth: 36, textAlign: 'right'},
+    progressFill: {height: '100%', backgroundColor: c.primary, borderRadius: 4},
+    timerWrap: {flexDirection: 'row', alignItems: 'center', gap: 3},
+    timerText: {fontSize: 12 * fs, color: c.subText, fontWeight: '700'},
     typeBadge: {
-      alignSelf: 'flex-start', backgroundColor: c.isDark ? '#1A1F3A' : '#EEF2FF',
+      alignSelf: 'flex-start', backgroundColor: c.primarySoft,
       borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10,
     },
-    typeBadgeText: {fontSize: 12 * fs, color: '#2979FF', fontWeight: '600'},
+    typeBadgeText: {fontSize: 12 * fs, color: c.primary, fontWeight: '600'},
     title: {fontSize: 18 * fs, fontWeight: '700', color: c.text, marginBottom: 8},
     question: {fontSize: 15 * fs, color: c.text, lineHeight: 23 * fs, marginBottom: 16},
     metaBox: {
@@ -410,10 +463,10 @@ function makeStyles(c: Colors, fs: number) {
       fontFamily: 'monospace',
     },
     fmtBtn: {
-      alignSelf: 'flex-end', backgroundColor: c.isDark ? '#1A1F3A' : '#EEF2FF',
+      alignSelf: 'flex-end', backgroundColor: c.primarySoft,
       borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 8,
     },
-    fmtBtnText: {color: '#2979FF', fontSize: 13 * fs, fontWeight: '700'},
+    fmtBtnText: {color: c.primary, fontSize: 13 * fs, fontWeight: '700'},
     codeInput: {
       borderWidth: 1, borderColor: c.border, borderRadius: 10,
       padding: 14, fontSize: 13 * fs, backgroundColor: c.card, color: c.text,
@@ -423,12 +476,26 @@ function makeStyles(c: Colors, fs: number) {
     inputWrong: {borderColor: '#F44336', backgroundColor: '#FFEBEE'},
     inputDisabled: {backgroundColor: c.isDark ? '#1A1A2A' : '#F5F5F5'},
     correctHint: {fontSize: 12, color: '#F44336'},
+    // 실행 / AI 힌트 / 제출하기 행
+    actionRow: {flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8},
+    runBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+      borderRadius: 12, paddingVertical: 14, paddingHorizontal: 14,
+    },
+    runBtnText: {color: c.text, fontSize: 14 * fs, fontWeight: '700'},
+    hintBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+      backgroundColor: c.primarySoft, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 14,
+    },
+    hintBtnText: {color: c.primary, fontSize: 14 * fs, fontWeight: '700'},
     submitBtn: {
-      backgroundColor: '#2979FF', borderRadius: 12,
+      backgroundColor: c.primary, borderRadius: 12,
       paddingVertical: 16, alignItems: 'center', marginTop: 8,
     },
+    submitFlex: {flex: 1, flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 0},
     btnDisabled: {opacity: 0.6},
-    submitBtnText: {color: '#FFF', fontSize: 16, fontWeight: '700'},
+    submitBtnText: {color: '#FFF', fontSize: 15 * fs, fontWeight: '800'},
     resultCard: {borderRadius: 14, padding: 20, marginTop: 8},
     correctCard: {backgroundColor: '#E8F5E9'},
     wrongCard: {backgroundColor: '#FFEBEE'},
@@ -436,7 +503,7 @@ function makeStyles(c: Colors, fs: number) {
     answerLabel: {fontSize: 12, fontWeight: '700', color: '#333', marginBottom: 6},
     resultExplain: {fontSize: 14, color: '#333', lineHeight: 22, marginBottom: 16},
     nextBtn: {
-      backgroundColor: '#2979FF', borderRadius: 10,
+      backgroundColor: c.primary, borderRadius: 10,
       paddingVertical: 14, alignItems: 'center',
     },
     nextBtnText: {color: '#FFF', fontWeight: '700', fontSize: 15},
