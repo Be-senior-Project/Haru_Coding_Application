@@ -154,6 +154,7 @@ export default function LoginScreen() {
             style={[styles.googleBtn, loading && styles.btnDisabled]}
             onPress={handleGoogleLogin}
             disabled={loading}>
+            {/* Google 브랜드 색 — 테마와 무관하게 고정 */}
             <MaterialCommunityIcons name="google" size={20} color="#4285F4" />
             <Text style={styles.googleBtnText}>Google로 계속하기</Text>
           </TouchableOpacity>

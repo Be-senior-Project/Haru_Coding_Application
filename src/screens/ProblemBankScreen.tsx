@@ -5,7 +5,7 @@ import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../navigation/AppNavigator';
 import {problemSets} from '../data/mockProblems';
-import {TYPE_LABEL, difficultyLabel, difficultyColor} from '../types/problem';
+import {TYPE_LABEL, difficultyLabel, difficultyColor, difficultySoft} from '../types/problem';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
@@ -72,8 +72,8 @@ export default function ProblemBankScreen() {
             <View style={styles.cardBody}>
               <View style={styles.cardTop}>
                 <View style={styles.badges}>
-                  <View style={[styles.badge, {backgroundColor: difficultyColor(p.difficulty) + '22'}]}>
-                    <Text style={[styles.badgeText, {color: difficultyColor(p.difficulty)}]}>
+                  <View style={[styles.badge, {backgroundColor: difficultySoft(p.difficulty, colors)}]}>
+                    <Text style={[styles.badgeText, {color: difficultyColor(p.difficulty, colors)}]}>
                       {difficultyLabel(p.difficulty)}
                     </Text>
                   </View>
@@ -117,7 +117,7 @@ function makeStyles(c: Colors, fs: number) {
     },
     filterActive: {backgroundColor: c.primary},
     filterText: {fontSize: 13 * fs, color: c.subText},
-    filterTextActive: {color: '#FFFFFF', fontWeight: '700'},
+    filterTextActive: {color: c.onPrimary, fontWeight: '700'},
 
     // 문제 카드 — Home의 problemCard와 동일한 소프트 그림자/둥근 모서리
     problemCard: {

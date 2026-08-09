@@ -14,12 +14,16 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import type {RootStackParamList} from '../navigation/AppNavigator';
 
-const DIFFICULTY_COLOR: Record<string, string> = {
-  입문: '#2979FF',
-  초급: '#4CAF50',
-  중급: '#FF9800',
-  고급: '#F44336',
-};
+// 난이도 → 테마 토큰. 색 값은 ThemeContext 한 곳에서만 관리한다.
+function difficultyTone(difficulty: string, c: Colors): string {
+  switch (difficulty) {
+    case '입문': return c.info;
+    case '초급': return c.success;
+    case '중급': return c.warning;
+    case '고급': return c.danger;
+    default: return c.primary;
+  }
+}
 
 const DIFFICULTY_ICON: Record<string, string> = {
   입문: 'star-outline',
@@ -43,7 +47,7 @@ export default function OnboardingResultScreen() {
   const insets = useSafeAreaInsets();
 
   const {difficulty, reason, focusPoint} = route.params;
-  const diffColor = DIFFICULTY_COLOR[difficulty] ?? colors.primary;
+  const diffColor = difficultyTone(difficulty, colors);
   const diffIcon = DIFFICULTY_ICON[difficulty] ?? 'star';
 
   return (
@@ -100,8 +104,8 @@ export default function OnboardingResultScreen() {
       {/* 집중 포인트 카드 */}
       <View style={styles.infoCard}>
         <View style={styles.infoCardHeader}>
-          <View style={[styles.infoIcon, {backgroundColor: '#FF980020'}]}>
-            <MaterialIcons name="flag" size={18} color="#FF9800" />
+          <View style={[styles.infoIcon, {backgroundColor: colors.warning + '20'}]}>
+            <MaterialIcons name="flag" size={18} color={colors.warning} />
           </View>
           <Text style={styles.infoCardTitle}>집중 포인트</Text>
         </View>

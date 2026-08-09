@@ -16,16 +16,29 @@ function formatDate(iso: string): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-// 이번 주 월~일 날짜 범위 "M.D - M.D"
-function thisWeekRange(): string {
+const md = (d: Date) => `${d.getMonth() + 1}.${d.getDate()}`;
+
+// 선택한 탭에 맞는 카드 제목과 기간 표기
+function periodInfo(tab: string): {title: string; range: string} {
   const now = new Date();
-  const dayIdx = (now.getDay() + 6) % 7; // 월=0
-  const mon = new Date(now);
-  mon.setDate(now.getDate() - dayIdx);
-  const sun = new Date(mon);
-  sun.setDate(mon.getDate() + 6);
-  const fmt = (d: Date) => `${d.getMonth() + 1}.${d.getDate()}`;
-  return `${fmt(mon)} - ${fmt(sun)}`;
+  switch (tab) {
+    case '주간': {
+      const mon = new Date(now);
+      mon.setDate(now.getDate() - ((now.getDay() + 6) % 7)); // 월=0 기준
+      const sun = new Date(mon);
+      sun.setDate(mon.getDate() + 6);
+      return {title: '이번 주 학습 현황', range: `${md(mon)} - ${md(sun)}`};
+    }
+    case '월간': {
+      const first = new Date(now.getFullYear(), now.getMonth(), 1);
+      const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      return {title: '이번 달 학습 현황', range: `${md(first)} - ${md(last)}`};
+    }
+    case '연간':
+      return {title: '올해 학습 현황', range: `${now.getFullYear()}.1.1 - 12.31`};
+    default:
+      return {title: '전체 학습 현황', range: '전체 기간'};
+  }
 }
 
 export default function StatsScreen() {
@@ -92,6 +105,8 @@ export default function StatsScreen() {
   }
 
   const accuracy = stats?.accuracyRate ?? 0;
+  const period = periodInfo(tab);
+  const isAllTab = tab === '전체';
 
   return (
     <ScrollView
@@ -101,9 +116,6 @@ export default function StatsScreen() {
       {/* 헤더 */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>학습 통계</Text>
-        <TouchableOpacity onPress={() => Alert.alert('알림', '새로운 알림이 없어요.')} hitSlop={8}>
-          <MaterialIcons name="notifications-none" size={24} color={colors.text} />
-        </TouchableOpacity>
       </View>
 
       {/* 기간 탭 */}
@@ -119,14 +131,14 @@ export default function StatsScreen() {
       {/* 이번 주 학습 현황 */}
       <View style={styles.card}>
         <View style={styles.cardTitleRow}>
-          <Text style={styles.cardLabel}>이번 주 학습 현황</Text>
-          <Text style={styles.cardDate}>{thisWeekRange()}</Text>
+          <Text style={styles.cardLabel}>{period.title}</Text>
+          <Text style={styles.cardDate}>{period.range}</Text>
         </View>
         <View style={styles.weekTop}>
           <View style={styles.weekTopLeft}>
-            <Text style={styles.cardSub}>이번 주 푼 문제</Text>
+            <Text style={styles.cardSub}>{isAllTab ? '전체 푼 문제' : '최근 7일 푼 문제'}</Text>
             <View style={styles.weekValueRow}>
-              <Text style={styles.weekValue}>{weekTotal}</Text>
+              <Text style={styles.weekValue}>{isAllTab ? (stats?.totalSolved ?? 0) : weekTotal}</Text>
               <Text style={styles.weekUnit}> 문제</Text>
             </View>
           </View>
@@ -140,7 +152,8 @@ export default function StatsScreen() {
           </View>
         </View>
 
-        {/* 주간 바 차트 */}
+        {/* 바 차트는 백엔드가 주는 weeklyActivity(월~일) 기준이라 탭과 무관하게 최근 7일 */}
+        <Text style={styles.chartCaption}>최근 7일 활동</Text>
         <View style={styles.barChart}>
           {week.map((h, i) => (
             <View key={i} style={styles.barWrapper}>
@@ -160,9 +173,9 @@ export default function StatsScreen() {
 
       {/* 핵심 지표 3종 (실제 값) */}
       <View style={styles.metricRow}>
-        <Metric icon="article" color="#6C5CE7" value={`${stats?.totalSolved ?? 0}`} unit="개" label="푼 문제 수" colors={colors} fs={fontScale} />
-        <Metric icon="check-circle" color="#26C281" value={`${accuracy}`} unit="%" label="정답률" colors={colors} fs={fontScale} />
-        <Metric icon="local-fire-department" color="#FF6B35" value={`${stats?.currentStreak ?? 0}`} unit="일" label="연속 학습" colors={colors} fs={fontScale} />
+        <Metric icon="article" color={colors.primary} value={`${stats?.totalSolved ?? 0}`} unit="개" label="푼 문제 수" colors={colors} fs={fontScale} />
+        <Metric icon="check-circle" color={colors.success} value={`${accuracy}`} unit="%" label="정답률" colors={colors} fs={fontScale} />
+        <Metric icon="local-fire-department" color={colors.streak} value={`${stats?.currentStreak ?? 0}`} unit="일" label="연속 학습" colors={colors} fs={fontScale} />
       </View>
 
       {/* 실력 분석 (주제별 정답률 + 약점 팁) */}
@@ -191,7 +204,7 @@ export default function StatsScreen() {
 
           {weakest && (
             <View style={styles.tipBox}>
-              <MaterialIcons name="lightbulb" size={18} color="#F5B301" />
+              <MaterialIcons name="lightbulb" size={18} color={colors.warning} />
               <Text style={styles.tipText}>
                 <Text style={styles.tipStrong}>{weakest.topicName}</Text> 영역이 약점이에요! 해당 영역 문제를 더 풀어보는 걸 추천해요.
               </Text>
@@ -215,13 +228,13 @@ export default function StatsScreen() {
                 <MaterialIcons
                   name={r.isCorrect ? 'check-circle' : 'cancel'}
                   size={20}
-                  color={r.isCorrect ? '#26C281' : '#F44336'}
+                  color={r.isCorrect ? colors.success : colors.danger}
                 />
                 <View style={styles.recentInfo}>
                   <Text style={styles.recentTitle} numberOfLines={1}>{r.problemTitle}</Text>
                   <Text style={styles.recentMeta}>{r.topic} · {formatDate(r.solvedAt)}</Text>
                 </View>
-                <Text style={[styles.recentResult, {color: r.isCorrect ? '#26C281' : '#F44336'}]}>
+                <Text style={[styles.recentResult, {color: r.isCorrect ? colors.success : colors.danger}]}>
                   {r.isCorrect ? '정답' : '오답'}
                 </Text>
               </View>
@@ -295,6 +308,7 @@ function makeStyles(c: Colors, fs: number) {
     ringLabel: {fontSize: 10 * fs, color: c.subText, marginTop: 1},
 
     // 바 차트
+    chartCaption: {fontSize: 11 * fs, color: c.subText, marginBottom: 6},
     barChart: {flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 100},
     barWrapper: {flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 4},
     barTop: {fontSize: 9 * fs, color: c.subText, height: 12},
@@ -327,7 +341,7 @@ function makeStyles(c: Colors, fs: number) {
     // 약점 팁
     tipBox: {
       flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginTop: 14,
-      backgroundColor: c.isDark ? '#26233A' : '#F4F2FF', borderRadius: 12, padding: 12,
+      backgroundColor: c.primarySoft, borderRadius: 12, padding: 12,
     },
     tipText: {flex: 1, fontSize: 12 * fs, color: c.subText, lineHeight: 18 * fs},
     tipStrong: {fontWeight: '800', color: c.text},

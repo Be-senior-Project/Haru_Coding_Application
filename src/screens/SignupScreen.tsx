@@ -187,10 +187,10 @@ function makeStyles(c: Colors, fs: number) {
       backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12,
       paddingHorizontal: 14,
     },
-    inputRowError: {borderColor: '#F44336'},
+    inputRowError: {borderColor: c.danger},
     inputIcon: {marginRight: 10},
     input: {flex: 1, paddingVertical: 14, fontSize: 15 * fs, color: c.text},
-    errorText: {fontSize: 12 * fs, color: '#F44336', marginLeft: 4, marginTop: 6},
+    errorText: {fontSize: 12 * fs, color: c.danger, marginLeft: 4, marginTop: 6},
 
     agreeRow: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4, marginTop: 2},
     agreeText: {flex: 1, fontSize: 13 * fs, color: c.subText},

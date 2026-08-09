@@ -20,4 +20,7 @@ export const userApi = {
 
   updateMe: (data: {nickname?: string; preferredLanguage?: string; fcmToken?: string}) =>
     api.patch<UserProfile>('/api/users/me', data),
+
+  // 회원 탈퇴
+  deleteMe: () => api.del<void>('/api/users/me'),
 };

@@ -54,7 +54,7 @@ function TabNavigator() {
           <MaterialIcons name={TAB_ICON_NAMES[route.name]} size={focused ? 26 : 22} color={color} />
         ),
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: '#9E9E9E',
+        tabBarInactiveTintColor: colors.subText,
         tabBarStyle: {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
