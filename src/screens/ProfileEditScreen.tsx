@@ -15,7 +15,6 @@ import {userApi} from '../api/userApi';
 const LANGUAGES: {label: string; value: string}[] = [
   {label: 'Python', value: 'PYTHON'},
   {label: 'Java', value: 'JAVA'},
-  {label: 'JavaScript', value: 'JS'},
   {label: 'C', value: 'C'},
 ];
 
@@ -165,12 +164,12 @@ function makeStyles(c: Colors, fs: number) {
     },
     langChipActive: {backgroundColor: c.primary, borderColor: c.primary},
     langChipText: {fontSize: 14 * fs, color: c.subText, fontWeight: '600'},
-    langChipTextActive: {color: '#FFFFFF', fontWeight: '800'},
+    langChipTextActive: {color: c.onPrimary, fontWeight: '800'},
 
     saveBtn: {
       backgroundColor: c.primary, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 8,
     },
-    saveBtnText: {color: '#FFFFFF', fontSize: 16 * fs, fontWeight: '800'},
+    saveBtnText: {color: c.onPrimary, fontSize: 16 * fs, fontWeight: '800'},
     btnDisabled: {opacity: 0.6},
   });
 }

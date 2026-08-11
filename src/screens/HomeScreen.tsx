@@ -5,7 +5,7 @@ import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../navigation/AppNavigator';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {useTheme, type Colors} from '../theme/ThemeContext';
+import {useTheme, tierColor, type Colors} from '../theme/ThemeContext';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import {recommendationApi, type RecommendationResponse} from '../api/recommendationApi';
@@ -13,13 +13,25 @@ import {problemApi} from '../api/problemApi';
 import {statsApi, type StatsData} from '../api/statsApi';
 import {userApi, type UserProfile} from '../api/userApi';
 
-// 추천 학습 주제 (데모) — 각 카드 색상/아이콘/문제 수
-const TOPICS: {label: string; count: number; icon: string; tint: string; accent: string; progress: number}[] = [
-  {label: '자료구조', count: 20, icon: 'format-list-bulleted', tint: '#E6F8F0', accent: '#26C281', progress: 0.4},
-  {label: '그리디', count: 18, icon: 'bolt', tint: '#E7F1FE', accent: '#3B82F6', progress: 0.3},
-  {label: '동적 계획법', count: 25, icon: 'memory', tint: '#EEEBFF', accent: '#6C5CE7', progress: 0.55},
-  {label: '이진 탐색', count: 15, icon: 'search', tint: '#FFF1E6', accent: '#FB8C00', progress: 0.2},
+// 추천 학습 주제 (데모) — 색은 테마 토큰 키로만 지정하고 실제 값은 렌더 시 해석
+const TOPICS: {label: string; count: number; icon: string; tone: TopicTone; progress: number}[] = [
+  {label: '자료구조', count: 20, icon: 'format-list-bulleted', tone: 'success', progress: 0.4},
+  {label: '그리디', count: 18, icon: 'bolt', tone: 'info', progress: 0.3},
+  {label: '동적 계획법', count: 25, icon: 'memory', tone: 'primary', progress: 0.55},
+  {label: '이진 탐색', count: 15, icon: 'search', tone: 'streak', progress: 0.2},
 ];
+
+type TopicTone = 'success' | 'info' | 'primary' | 'streak';
+
+// 토픽 카드의 강조색/배경색을 현재 테마에서 꺼낸다 (다크모드에서 같이 뒤집히도록)
+function topicTone(tone: TopicTone, c: Colors): {accent: string; tint: string} {
+  switch (tone) {
+    case 'success': return {accent: c.success, tint: c.successSoft};
+    case 'info': return {accent: c.info, tint: c.infoSoft};
+    case 'streak': return {accent: c.streak, tint: c.streakSoft};
+    default: return {accent: c.primary, tint: c.primarySoft};
+  }
+}
 
 // 리그 티어 영문(백엔드) → 한글 표시 라벨
 const TIER_KO: Record<string, string> = {
@@ -114,9 +126,8 @@ export default function HomeScreen() {
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, {paddingTop: insets.top + 8}]}>
       {/* 헤더 */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => Alert.alert('메뉴', '메뉴는 준비 중이에요.')} hitSlop={8}>
-          <MaterialIcons name="menu" size={26} color={colors.text} />
-        </TouchableOpacity>
+        {/* 오른쪽 알림 아이콘과 폭을 맞춰 브랜드명을 가운데 유지 */}
+        <View style={styles.headerSpacer} />
         <View style={styles.brandWrap}>
           <Text style={styles.brand}>하루코딩</Text>
           <Text style={styles.brandTag}> {'</>'}</Text>
@@ -134,7 +145,7 @@ export default function HomeScreen() {
         <View style={styles.goalTopRow}>
           <Text style={styles.goalLabel}>오늘의 목표</Text>
           <View style={styles.streakChip}>
-            <MaterialCommunityIcons name="fire" size={14} color="#FF6B35" />
+            <MaterialCommunityIcons name="fire" size={14} color={colors.streak} />
             <Text style={styles.streakChipText}>{displayStreak}일 연속</Text>
           </View>
         </View>
@@ -155,10 +166,6 @@ export default function HomeScreen() {
       {/* 오늘의 문제 */}
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>오늘의 문제</Text>
-        <TouchableOpacity style={styles.moreBtn} onPress={() => Alert.alert('더보기', '문제 은행 탭에서 더 풀어보세요!')}>
-          <Text style={styles.moreText}>더보기</Text>
-          <MaterialIcons name="chevron-right" size={18} color={colors.subText} />
-        </TouchableOpacity>
       </View>
       <View style={styles.problemCard}>
         <View style={styles.todayRow}>
@@ -175,7 +182,7 @@ export default function HomeScreen() {
           onPress={handleStartSet}
           disabled={starting}>
           {starting ? (
-            <ActivityIndicator color="#FFF" />
+            <ActivityIndicator color={colors.onPrimary} />
           ) : (
             <Text style={styles.solveBtnText}>오늘의 문제 풀기!</Text>
           )}
@@ -191,42 +198,41 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
       <View style={styles.statsCard}>
-        <Stat icon="event-available" iconColor="#26C281" value={`${displayStreak}일`} label="연속 도전" colors={colors} fs={fontScale} />
+        <Stat icon="event-available" iconColor={colors.success} value={`${displayStreak}일`} label="연속 도전" colors={colors} fs={fontScale} />
         <View style={styles.statDivider} />
-        <Stat icon="bar-chart" iconColor="#3B82F6" value={String(solvedCount)} label="문제 해결" colors={colors} fs={fontScale} />
+        <Stat icon="bar-chart" iconColor={colors.info} value={String(solvedCount)} label="문제 해결" colors={colors} fs={fontScale} />
         <View style={styles.statDivider} />
-        <Stat icon="military-tech" iconColor="#CD7F32" value={tier} label="현재 티어" colors={colors} fs={fontScale} />
+        <Stat icon="military-tech" iconColor={tierColor(profile?.tier)} value={tier} label="현재 티어" colors={colors} fs={fontScale} />
         <View style={styles.statDivider} />
-        <Stat icon="pie-chart" iconColor="#6C5CE7" value={`${accuracy}%`} label="정답률" colors={colors} fs={fontScale} />
+        <Stat icon="pie-chart" iconColor={colors.primary} value={`${accuracy}%`} label="정답률" colors={colors} fs={fontScale} />
       </View>
 
       {/* 추천 학습 주제 */}
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>추천 학습 주제</Text>
-        <TouchableOpacity style={styles.moreBtn} onPress={() => Alert.alert('더보기', '더 많은 주제가 곧 추가돼요!')}>
-          <Text style={styles.moreText}>더보기</Text>
-          <MaterialIcons name="chevron-right" size={18} color={colors.subText} />
-        </TouchableOpacity>
       </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.topicRow}>
-        {TOPICS.map(t => (
-          <TouchableOpacity
-            key={t.label}
-            style={[styles.topicCard, {backgroundColor: t.tint}]}
-            onPress={handleStartSet}>
-            <View style={styles.topicIconBox}>
-              <MaterialIcons name={t.icon} size={20} color={t.accent} />
-            </View>
-            <Text style={styles.topicLabel}>{t.label}</Text>
-            <Text style={styles.topicCount}>{t.count}문제</Text>
-            <View style={styles.topicBarTrack}>
-              <View style={[styles.topicBarFill, {width: `${t.progress * 100}%`, backgroundColor: t.accent}]} />
-            </View>
-          </TouchableOpacity>
-        ))}
+        {TOPICS.map(t => {
+          const {accent, tint} = topicTone(t.tone, colors);
+          return (
+            <TouchableOpacity
+              key={t.label}
+              style={[styles.topicCard, {backgroundColor: tint}]}
+              onPress={handleStartSet}>
+              <View style={styles.topicIconBox}>
+                <MaterialIcons name={t.icon} size={20} color={accent} />
+              </View>
+              <Text style={styles.topicLabel}>{t.label}</Text>
+              <Text style={styles.topicCount}>{t.count}문제</Text>
+              <View style={styles.topicBarTrack}>
+                <View style={[styles.topicBarFill, {width: `${t.progress * 100}%`, backgroundColor: accent}]} />
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       {/* 비로그인 안내 */}
@@ -264,6 +270,7 @@ function makeStyles(c: Colors, fs: number) {
 
     // 헤더
     header: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16},
+    headerSpacer: {width: 26},
     brandWrap: {flexDirection: 'row', alignItems: 'center'},
     brand: {fontSize: 20 * fs, fontWeight: '800', color: c.text},
     brandTag: {fontSize: 18 * fs, fontWeight: '800', color: c.primary},
@@ -295,9 +302,9 @@ function makeStyles(c: Colors, fs: number) {
     goalLabel: {fontSize: 13 * fs, fontWeight: '700', color: c.text},
     streakChip: {
       flexDirection: 'row', alignItems: 'center', gap: 4,
-      backgroundColor: 'rgba(255,107,53,0.12)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3,
+      backgroundColor: c.streakSoft, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3,
     },
-    streakChipText: {fontSize: 11 * fs, fontWeight: '700', color: '#FF6B35'},
+    streakChipText: {fontSize: 11 * fs, fontWeight: '700', color: c.streak},
     goalMidRow: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8},
     goalValueRow: {flexDirection: 'row', alignItems: 'baseline'},
     goalValue: {fontSize: 22 * fs, fontWeight: '900', color: c.primary},
@@ -335,7 +342,7 @@ function makeStyles(c: Colors, fs: number) {
     metaValue: {fontSize: 13 * fs, fontWeight: '700', color: c.text},
     solveBtn: {backgroundColor: c.primary, borderRadius: 14, paddingVertical: 15, alignItems: 'center'},
     solveBtnDisabled: {opacity: 0.7},
-    solveBtnText: {color: '#FFFFFF', fontSize: 15 * fs, fontWeight: '800'},
+    solveBtnText: {color: c.onPrimary, fontSize: 15 * fs, fontWeight: '800'},
 
     // 오늘의 문제 (간소화 카드)
     todayRow: {flexDirection: 'row', alignItems: 'center', marginBottom: 16},
@@ -359,11 +366,14 @@ function makeStyles(c: Colors, fs: number) {
     topicCard: {width: 130, borderRadius: 18, padding: 16},
     topicIconBox: {
       width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
-      marginBottom: 12, backgroundColor: '#FFFFFF',
+      marginBottom: 12, backgroundColor: c.card,
     },
-    topicLabel: {fontSize: 14 * fs, fontWeight: '800', color: '#1A1A2E', marginBottom: 2},
-    topicCount: {fontSize: 12 * fs, color: '#5A5A70', marginBottom: 12},
-    topicBarTrack: {height: 5, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.08)', overflow: 'hidden'},
+    topicLabel: {fontSize: 14 * fs, fontWeight: '800', color: c.text, marginBottom: 2},
+    topicCount: {fontSize: 12 * fs, color: c.subText, marginBottom: 12},
+    topicBarTrack: {
+      height: 5, borderRadius: 3, overflow: 'hidden',
+      backgroundColor: c.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+    },
     topicBarFill: {height: '100%', borderRadius: 3},
 
     // 비로그인 배너

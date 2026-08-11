@@ -86,7 +86,12 @@ async function request<T>(
     throw error;
   }
 
-  const json = await res.json();
+  // 204 No Content / 빈 본문(DELETE 등)은 파싱하지 않고 통과
+  const text = await res.text();
+  if (!text) {
+    return undefined as T;
+  }
+  const json = JSON.parse(text);
   return json.data ?? json;
 }
 
@@ -99,4 +104,7 @@ export const api = {
 
   patch: <T>(path: string, body: object, auth = true) =>
     request<T>(path, {method: 'PATCH', body: JSON.stringify(body)}, auth),
+
+  del: <T>(path: string, auth = true) =>
+    request<T>(path, {method: 'DELETE'}, auth),
 };

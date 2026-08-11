@@ -5,6 +5,8 @@ import {useTheme} from '../theme/ThemeContext';
 type TokenType = 'keyword' | 'builtin' | 'string' | 'comment' | 'number' | 'operator' | 'blank' | 'text';
 type Token = {type: TokenType; value: string};
 
+// 코드 블록은 라이트/다크 상관없이 항상 어두운 에디터 배경을 쓴다.
+// 아래 색은 앱 테마가 아니라 문법 강조 테마(VS Code Dark+)이므로 토큰화하지 않음.
 const TOKEN_COLORS: Record<TokenType, string> = {
   keyword:  '#569CD6',
   builtin:  '#DCDCAA',

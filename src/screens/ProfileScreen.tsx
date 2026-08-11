@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {useTheme, type Colors, type FontSizeKey} from '../theme/ThemeContext';
+import {useTheme, tierColor, type Colors, type FontSizeKey} from '../theme/ThemeContext';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootStackParamList} from '../navigation/AppNavigator';
@@ -21,13 +21,13 @@ const FONT_SIZE_OPTIONS: {key: FontSizeKey; size: number}[] = [
 
 const SOON = (title: string) => () => Alert.alert(title, '곧 추가될 기능이에요.');
 
-// 실제 level 값에서 티어 라벨/색상 파생
+// 실제 level 값에서 티어 라벨/색상 파생 (색은 theme의 TIER_COLOR 한 곳에서만 관리)
 function getTier(level: number): {label: string; color: string} {
-  if (level < 5) {return {label: '브론즈', color: '#B08D57'};}
-  if (level < 10) {return {label: '실버', color: '#9AA5B1'};}
-  if (level < 20) {return {label: '골드', color: '#F5B301'};}
-  if (level < 30) {return {label: '플래티넘', color: '#26C281'};}
-  return {label: '다이아', color: '#3B82F6'};
+  if (level < 5) {return {label: '브론즈', color: tierColor('BRONZE')};}
+  if (level < 10) {return {label: '실버', color: tierColor('SILVER')};}
+  if (level < 20) {return {label: '골드', color: tierColor('GOLD')};}
+  if (level < 30) {return {label: '플래티넘', color: tierColor('PLATINUM')};}
+  return {label: '다이아', color: tierColor('DIAMOND')};
 }
 
 export default function ProfileScreen() {
@@ -66,6 +66,40 @@ export default function ProfileScreen() {
     navigation.reset({index: 0, routes: [{name: 'Login'}]});
   };
 
+  const confirmLogout = () => {
+    Alert.alert('로그아웃', '정말 로그아웃할까요?', [
+      {text: '취소', style: 'cancel'},
+      {text: '로그아웃', style: 'destructive', onPress: handleLogout},
+    ]);
+  };
+
+  const handleWithdraw = async () => {
+    try {
+      await userApi.deleteMe();
+    } catch (e: any) {
+      const status = e?.status;
+      Alert.alert(
+        '탈퇴하지 못했어요',
+        status
+          ? `서버에서 요청을 처리하지 못했어요. (오류 ${status})`
+          : '서버에 연결하지 못했어요. 네트워크 상태를 확인해 주세요.',
+      );
+      return;
+    }
+    await handleLogout(); // 토큰 정리 + 로그인 화면으로
+  };
+
+  const confirmWithdraw = () => {
+    Alert.alert(
+      '탈퇴하기',
+      '탈퇴하면 학습 기록과 통계가 모두 삭제되며 복구할 수 없어요.\n정말 탈퇴할까요?',
+      [
+        {text: '취소', style: 'cancel'},
+        {text: '탈퇴하기', style: 'destructive', onPress: handleWithdraw},
+      ],
+    );
+  };
+
   const xpProgress = profile ? profile.xp % 100 : 0;
   const tier = profile ? getTier(profile.level) : null;
 
@@ -78,9 +112,6 @@ export default function ProfileScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>마이페이지</Text>
         <View style={styles.headerIcons}>
-          <TouchableOpacity onPress={SOON('설정')} hitSlop={8}>
-            <MaterialIcons name="settings" size={22} color={colors.text} />
-          </TouchableOpacity>
           <TouchableOpacity onPress={() => Alert.alert('알림', '새로운 알림이 없어요.')} hitSlop={8}>
             <MaterialIcons name="notifications-none" size={22} color={colors.text} />
           </TouchableOpacity>
@@ -103,9 +134,6 @@ export default function ProfileScreen() {
             <View style={styles.profileInfo}>
               <View style={styles.nameRow}>
                 <Text style={styles.username}>{profile.nickname}</Text>
-                <TouchableOpacity onPress={() => navigation.navigate('ProfileEdit')} hitSlop={6}>
-                  <MaterialIcons name="edit" size={15} color={colors.subText} />
-                </TouchableOpacity>
               </View>
               <Text style={styles.userMeta}>Lv.{profile.level} · {profile.xp.toLocaleString()} XP</Text>
               <View style={styles.expBar}>
@@ -123,7 +151,7 @@ export default function ProfileScreen() {
 
           {/* 연속 학습 배너 (실제 streakDays) */}
           <TouchableOpacity style={styles.streakBanner} activeOpacity={0.85} onPress={SOON('연속 학습')}>
-            <MaterialCommunityIcons name="fire" size={22} color="#FF6B35" />
+            <MaterialCommunityIcons name="fire" size={22} color={colors.streak} />
             <View style={styles.streakTextWrap}>
               <Text style={styles.streakTitle}>{profile.streakDays}일 연속 학습 중!</Text>
               <Text style={styles.streakSub}>매일 학습하고 더 높은 레벨에 도전하세요!</Text>
@@ -133,22 +161,20 @@ export default function ProfileScreen() {
 
           {/* 핵심 통계 4종 (실제 값) */}
           <View style={styles.statRow}>
-            <Stat icon="article" color="#6C5CE7" value={`${profile.totalSolved}개`} label="푼 문제" colors={colors} fs={fontScale} />
+            <Stat icon="article" color={colors.primary} value={`${profile.totalSolved}개`} label="푼 문제" colors={colors} fs={fontScale} />
             <View style={styles.statDivider} />
-            <Stat icon="check-circle" color="#26C281" value={`${profile.accuracyRate}%`} label="정답률" colors={colors} fs={fontScale} />
+            <Stat icon="check-circle" color={colors.success} value={`${profile.accuracyRate}%`} label="정답률" colors={colors} fs={fontScale} />
             <View style={styles.statDivider} />
-            <Stat icon="local-fire-department" color="#FF6B35" value={`${profile.streakDays}일`} label="연속 학습" colors={colors} fs={fontScale} />
+            <Stat icon="local-fire-department" color={colors.streak} value={`${profile.streakDays}일`} label="연속 학습" colors={colors} fs={fontScale} />
             <View style={styles.statDivider} />
-            <Stat icon="stars" color="#F5B301" value={profile.xp.toLocaleString()} label="획득 XP" colors={colors} fs={fontScale} />
+            <Stat icon="stars" color={colors.warning} value={profile.xp.toLocaleString()} label="획득 XP" colors={colors} fs={fontScale} />
           </View>
 
           {/* 내 학습 */}
           <Text style={styles.sectionTitle}>내 학습</Text>
           <View style={styles.menuCard}>
             <MenuRow icon="rule" iconColor={colors.primary} label="오답 노트" onPress={SOON('오답 노트')} colors={colors} fs={fontScale} />
-            <MenuRow icon="bookmark-border" iconColor={colors.primary} label="스크랩한 문제" onPress={SOON('스크랩한 문제')} colors={colors} fs={fontScale} />
-            <MenuRow icon="schedule" iconColor={colors.primary} label="최근 본 문제" onPress={SOON('최근 본 문제')} colors={colors} fs={fontScale} />
-            <MenuRow icon="task-alt" iconColor={colors.primary} label="추천 히스토리" onPress={SOON('추천 히스토리')} last colors={colors} fs={fontScale} />
+            <MenuRow icon="bookmark-border" iconColor={colors.primary} label="스크랩한 문제" onPress={SOON('스크랩한 문제')} last colors={colors} fs={fontScale} />
           </View>
         </>
       ) : (
@@ -166,7 +192,6 @@ export default function ProfileScreen() {
       <Text style={styles.sectionTitle}>내 정보</Text>
       <View style={styles.menuCard}>
         <MenuRow icon="person-outline" iconColor={colors.subText} label="프로필 관리" onPress={() => navigation.navigate('ProfileEdit')} colors={colors} fs={fontScale} />
-        <MenuRow icon="manage-accounts" iconColor={colors.subText} label="계정 설정" onPress={SOON('계정 설정')} colors={colors} fs={fontScale} />
         <MenuRow icon="notifications-none" iconColor={colors.subText} label="알림 설정" onPress={SOON('알림 설정')} colors={colors} fs={fontScale} />
         <MenuRow
           icon="dark-mode" iconColor={colors.subText} label="다크 모드" colors={colors} fs={fontScale}
@@ -192,16 +217,13 @@ export default function ProfileScreen() {
         />
       </View>
 
-      {/* 기타 */}
-      <Text style={styles.sectionTitle}>기타</Text>
-      <View style={styles.menuCard}>
-        <MenuRow icon="support-agent" iconColor={colors.subText} label="고객센터" onPress={SOON('고객센터')} colors={colors} fs={fontScale} />
-        <MenuRow icon="chat-bubble-outline" iconColor={colors.subText} label="문의하기" onPress={SOON('문의하기')} colors={colors} fs={fontScale} />
-        <MenuRow icon="info-outline" iconColor={colors.subText} label="서비스 소개" onPress={SOON('서비스 소개')} last={!hasToken} colors={colors} fs={fontScale} />
-        {hasToken && (
-          <MenuRow icon="logout" iconColor="#F44336" label="로그아웃" danger onPress={handleLogout} last colors={colors} fs={fontScale} />
-        )}
-      </View>
+      {/* 계정 (로그인 상태에서만 노출) */}
+      {hasToken && (
+        <View style={styles.menuCard}>
+          <MenuRow icon="logout" iconColor={colors.subText} label="로그아웃" onPress={confirmLogout} colors={colors} fs={fontScale} />
+          <MenuRow icon="person-remove" iconColor={colors.danger} label="탈퇴하기" danger onPress={confirmWithdraw} last colors={colors} fs={fontScale} />
+        </View>
+      )}
 
       <View style={styles.bottomSpacer} />
     </ScrollView>
@@ -272,7 +294,7 @@ function makeStyles(c: Colors, fs: number) {
     // 연속 학습 배너
     streakBanner: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
-      backgroundColor: c.isDark ? '#2A1A0A' : '#FFF3E9', borderRadius: 16, padding: 16, marginBottom: 14,
+      backgroundColor: c.streakSoft, borderRadius: 16, padding: 16, marginBottom: 14,
     },
     streakTextWrap: {flex: 1},
     streakTitle: {fontSize: 14 * fs, fontWeight: '800', color: c.text},
@@ -294,7 +316,7 @@ function makeStyles(c: Colors, fs: number) {
     },
     loginText: {fontSize: 14 * fs, color: c.subText, textAlign: 'center'},
     loginBtn: {backgroundColor: c.primary, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 32, marginTop: 4},
-    loginBtnText: {color: '#FFF', fontWeight: '800', fontSize: 14 * fs},
+    loginBtnText: {color: c.onPrimary, fontWeight: '800', fontSize: 14 * fs},
 
     // 섹션 + 메뉴 리스트
     sectionTitle: {fontSize: 16 * fs, fontWeight: '800', color: c.text, marginTop: 4, marginBottom: 12},
@@ -309,7 +331,7 @@ function makeStyles(c: Colors, fs: number) {
     noBorder: {borderBottomWidth: 0},
     menuIcon: {marginRight: 14},
     menuLabel: {flex: 1, fontSize: 14 * fs, color: c.text},
-    menuLabelDanger: {color: '#F44336', fontWeight: '700'},
+    menuLabelDanger: {color: c.danger, fontWeight: '700'},
 
     // 글자 크기 버튼
     fontSizeRow: {flexDirection: 'row', gap: 8},

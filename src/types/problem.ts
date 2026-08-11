@@ -1,5 +1,7 @@
 // 백엔드 problems 스키마와 1:1로 맞춘 프론트 공용 문제 모델
 
+import type {Colors} from '../theme/ThemeContext';
+
 export type ProblemType = 'IMPLEMENTATION' | 'DEBUGGING' | 'FILL_IN_THE_BLANK';
 
 export interface IOExample {
@@ -39,18 +41,18 @@ export const DIFFICULTY_LABEL: Record<number, string> = {
   2: '고급',
 };
 
-export const DIFFICULTY_COLOR: Record<number, string> = {
-  0: '#4CAF50',
-  1: '#FF9800',
-  2: '#F44336',
-};
-
 export function difficultyLabel(d: number): string {
   return DIFFICULTY_LABEL[d] ?? '기타';
 }
 
-export function difficultyColor(d: number): string {
-  return DIFFICULTY_COLOR[d] ?? '#9E9E9E';
+// 난이도 색은 테마 토큰에서 가져온다 (기초=성공, 중급=주의, 고급=위험).
+export function difficultyColor(d: number, c: Colors): string {
+  return [c.success, c.warning, c.danger][d] ?? c.subText;
+}
+
+// 배지 배경용 연한 짝
+export function difficultySoft(d: number, c: Colors): string {
+  return [c.successSoft, c.warningSoft, c.dangerSoft][d] ?? c.border;
 }
 
 // CodeBlock이 지원하는 언어로 매핑 (Java/C++는 우선 javascript 토크나이저로 폴백)
