@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nesting Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 16px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+
+        textarea {
+            width: 100%;
+            height: 200px;
+            background: #2d2d2d;
+            color: #d4d4d4;
+            border: 1px solid #444;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 14px;
+            resize: vertical;
+        }
+
+        .controls {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        label {
+            font-size: 13px;
+            color: #aaa;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        input[type=number] {
+            width: 64px;
+            background: #2d2d2d;
+            color: #d4d4d4;
+            border: 1px solid #444;
+            padding: 4px 8px;
+            font-size: 14px;
+        }
+
+        .font-toggle {
+            display: flex;
+            gap: 6px;
+        }
+
+        .font-btn {
+            background: #2d2d2d;
+            color: #aaa;
+            border: 1px solid #444;
+            padding: 4px 12px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .font-btn.active {
+            background: #0e639c;
+            color: white;
+            border-color: #0e639c;
+        }
+
+        pre {
+            background: #2d2d2d;
+            padding: 16px;
+            border: 1px solid #444;
+            white-space: pre;
+            overflow-x: auto;
+            line-height: 1.6;
+            min-height: 100px;
+        }
+
+        .section-title {
+            color: #888;
+            font-size: 12px;
+            margin: 12px 0 4px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="section-title">입력 코드</div>
+<textarea id="input">public class OrderProcessor {
+
+    public void processOrders(List&lt;Order&gt; orders, User user, String region, String platform) {
+
+        for (int i = 0; i &lt; orders.size(); i++) {
+            Order order = orders.get(i);
+
+            if (order.getStatus().equals("PENDING") &amp;&amp; order.getTotalPrice() &gt;= 10000 &amp;&amp; user.getMembershipLevel().equals("GOLD") &amp;&amp; region.equals("KR") &amp;&amp; order.getItemCount() &gt; 3) {
+
+                for (int j = 0; j &lt; order.getItemList().size(); j++) {
+                    Item item = order.getItemList().get(j);
+
+                    if (item.getCategory().equals("ELECTRONICS") &amp;&amp; item.getStock() &gt; 0 &amp;&amp; item.getDiscountRate() &lt; 0.5 &amp;&amp; platform.equals("MOBILE") &amp;&amp; item.getPrice() &gt;= 5000) {
+                        item.applyDiscount(0.1);
+                        item.setStatus("APPROVED");
+                        System.out.println("Item approved: " + item.getId());
+                    }
+                }
+
+                order.applyDiscount(0.1);
+                order.setStatus("APPROVED");
+                System.out.println("Order approved: " + order.getId());
+            }
+        }
+    }
+}</textarea>
+
+<div class="controls">
+    <button onclick="format()">Nesting 적용</button>
+
+    <label>
+        폰트 크기
+        <div class="font-toggle">
+            <button class="font-btn" onclick="setFont(12)">12px</button>
+            <button class="font-btn active" onclick="setFont(13)">13px</button>
+            <button class="font-btn" onclick="setFont(14)">14px</button>
+        </div>
+    </label>
+
+    <label>
+        화면 너비
+        <input type="number" id="screenWidth" value="390">
+        px
+    </label>
+
+    <label>
+        패딩
+        <input type="number" id="padding" value="32">
+        px
+    </label>
+</div>
+
+<div class="section-title">결과</div>
+<pre id="output" style="font-size: 13px;">여기에 결과가 나와요</pre>
+
+<script>
+    let currentFontSize = 13;
+
+    function setFont(size) {
+        currentFontSize = size;
+        document.getElementById('output').style.fontSize = size + 'px';
+        document.querySelectorAll('.font-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.textContent === size + 'px');
+        });
+    }
+
+    async function format() {
+        const code = document.getElementById('input').value;
+        const screenWidth = parseInt(document.getElementById('screenWidth').value);
+        const padding = parseInt(document.getElementById('padding').value);
+
+        const res = await fetch('/v1/nesting/format', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                code,
+                screenWidth: window.innerWidth,  // 크롬 현재 너비 자동으로 읽음
+                fontSize: currentFontSize,
+                padding
+            })
+        });
+
+        const data = await res.json();
+        document.getElementById('output').textContent = data.formattedCode;
+    }
+</script>
+
+</body>
+</html>
