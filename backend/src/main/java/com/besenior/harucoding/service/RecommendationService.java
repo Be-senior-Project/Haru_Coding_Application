@@ -1,24 +1,19 @@
 package com.besenior.harucoding.service;
 
 import com.besenior.harucoding.repository.UserRepository;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.besenior.harucoding.DTO.RecommendationFilterDto;
 import com.besenior.harucoding.DTO.UserProfileDto;
-import com.besenior.harucoding.global.util.PromptLoader;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
-import java.util.*;
+import java.util.List;
 
 /**
  * 온보딩(신규 유저) 추천 전용.
- * - coding_level / cote_prepared 기반 난이도·이유·집중포인트 산출 (GPT + 규칙 폴백)
+ * - coding_level / cote_prepared 기반 난이도·이유·집중포인트 산출 (전부 규칙 기반)
+ * - 조합이 6가지(코딩 경험 3 × 코테 준비 2)뿐이라 문구를 미리 정해두고 GPT 호출은 하지 않는다.
+ *   매번 같은 6개 중 하나가 나올 내용이라 API 비용·응답 지연만 늘고 얻는 게 없었다.
  * - 기존 유저 개인화 추천은 ProblemRecommendationService(/api/recommendations)로 대체됨
  */
 @Slf4j
@@ -26,44 +21,28 @@ import java.util.*;
 @RequiredArgsConstructor
 public class RecommendationService {
 
-    private final PromptLoader promptLoader;
-    private final RestTemplate restTemplate;
-    private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
 
-    @Value("${openai.api.key}")
-    private String openaiApiKey;
-
-    private static final String OPENAI_URL = "https://api.openai.com/v1/chat/completions";
-    private static final String GPT_MODEL = "gpt-4o-mini";
-
-    @PostConstruct
-    public void init() {
-        log.info("OpenAI Key 앞 10자리: {}",
-                openaiApiKey != null ? openaiApiKey.substring(0, Math.min(10, openaiApiKey.length())) : "NULL");
-    }
+    /** 온보딩 결과 화면에 노출할 고정 문구(추천 이유 + 학습 포인트). */
+    private record OnboardingMessage(String reason, String focusPoint) {}
 
     // ── 온보딩 추천 (신규 유저) ────────────────────────────────────
     public RecommendationFilterDto recommendOnboarding(UserProfileDto profile) {
         int score = calcOnboardingScore(profile);
         String difficulty = scoreToDifficulty(score);
+        OnboardingMessage message = onboardingMessage(profile.getCodingLevel(), profile.isCotePrepared());
 
-        RecommendationFilterDto tempResult;
-        try {
-            Map<String, String> vars = PromptLoader.vars(
-                    "coding_level",       profile.getCodingLevel(),
-                    "coding_level_label", codingLevelLabel(profile.getCodingLevel()),
-                    "cote_prepared_label", profile.isCotePrepared() ? "있음" : "없음",
-                    "preferred_language", profile.getPreferredLanguage() != null
-                            ? profile.getPreferredLanguage() : "미설정",
-                    "score",              String.valueOf(score)
-            );
-            tempResult = callGpt("onboarding", vars, "ai");
-        } catch (Exception e) {
-            log.warn("온보딩 AI 추천 실패, 규칙 기반 폴백: {}", e.getMessage());
-            tempResult = ruleBasedOnboarding(profile, difficulty);
-        }
-        final RecommendationFilterDto result = tempResult;
+        RecommendationFilterDto result = RecommendationFilterDto.builder()
+                .difficulty(difficulty)
+                .topicIds(List.of(1))
+                .type("객관식")
+                .style("일반")
+                .language(profile.getPreferredLanguage() != null
+                        ? profile.getPreferredLanguage() : "COMMON")
+                .reason(message.reason())
+                .focusPoint(message.focusPoint())
+                .method("rule_based")
+                .build();
 
         // users 테이블에 온보딩 결과 저장
         userRepository.findById(profile.getUserId()).ifPresent(user -> {
@@ -78,71 +57,37 @@ public class RecommendationService {
         return result;
     }
 
-    // ── GPT 호출 ──────────────────────────────────────────────────
-    private RecommendationFilterDto callGpt(
-            String promptType,
-            Map<String, String> vars,
-            String method) throws Exception {
-
-        String systemPrompt = promptLoader.getSystemPrompt(promptType);
-        String userPrompt   = promptLoader.getUserPrompt(promptType, vars);
-
-        Map<String, Object> body = new HashMap<>();
-        body.put("model", GPT_MODEL);
-        body.put("response_format", Map.of("type", "json_object"));
-        body.put("temperature", 0.3);
-        body.put("messages", List.of(
-                Map.of("role", "system", "content", systemPrompt),
-                Map.of("role", "user",   "content", userPrompt)
-        ));
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(openaiApiKey);
-
-        ResponseEntity<String> response = restTemplate.exchange(
-                OPENAI_URL, HttpMethod.POST,
-                new HttpEntity<>(body, headers), String.class
-        );
-
-        JsonNode root    = objectMapper.readTree(response.getBody());
-        JsonNode content = root.path("choices").get(0).path("message").path("content");
-        JsonNode result  = objectMapper.readTree(content.asText());
-
-        List<Integer> topicIds = new ArrayList<>();
-        result.path("topic_ids").forEach(n -> topicIds.add(n.asInt()));
-
-        return RecommendationFilterDto.builder()
-                .difficulty(result.path("difficulty").asText("초급"))
-                .topicIds(topicIds)
-                .type(result.path("type").asText("객관식"))
-                .style(result.path("style").asText("일반"))
-                .language(result.path("language").asText("COMMON"))
-                .reason(result.path("reason").asText())
-                .focusPoint(result.path("focus_point").asText())
-                .method(method)
-                .build();
-    }
-
-    // ── 규칙 기반 폴백 ─────────────────────────────────────────────
-    private RecommendationFilterDto ruleBasedOnboarding(
-            UserProfileDto profile, String difficulty) {
-        return RecommendationFilterDto.builder()
-                .difficulty(difficulty)
-                .topicIds(List.of(1))
-                .type("객관식")
-                .style("일반")
-                .language(profile.getPreferredLanguage() != null
-                        ? profile.getPreferredLanguage() : "COMMON")
-                .reason("경험을 바탕으로 " + difficulty + " 문제부터 시작해 보세요!")
-                .focusPoint("알고리즘 기초 개념 다지기")
-                .method("rule_based")
-                .build();
+    // ── 6가지 조합별 고정 문구 ─────────────────────────────────────
+    private OnboardingMessage onboardingMessage(String codingLevel, boolean cotePrepared) {
+        String level = codingLevel != null ? codingLevel : "NONE";
+        return switch (level) {
+            case "LOTS" -> cotePrepared
+                    ? new OnboardingMessage(
+                            "실력이 탄탄하시네요. 까다로운 유형으로 실전 감각을 끌어올려 봅시다.",
+                            "DP와 그래프 탐색 정복하기")
+                    : new OnboardingMessage(
+                            "코딩은 익숙하시니 이제 코테 유형에 적응하는 게 관건입니다.",
+                            "시간복잡도 계산과 자료구조 선택");
+            case "SOME" -> cotePrepared
+                    ? new OnboardingMessage(
+                            "기본기와 코테 경험이 모두 있으니 자료구조를 본격적으로 다뤄볼 때입니다.",
+                            "스택, 큐, 해시 활용하기")
+                    : new OnboardingMessage(
+                            "코딩 경험이 있으니 문법은 가볍게 넘기고 문제 풀이 감각을 키워봐요.",
+                            "완전탐색과 정렬 익히기");
+            default -> cotePrepared
+                    ? new OnboardingMessage(
+                            "코테를 준비해보셨군요. 기초를 빠르게 다지고 바로 문제 풀이로 들어가 봅시다.",
+                            "배열과 문자열 기본 다루기")
+                    : new OnboardingMessage(
+                            "코딩이 처음이시군요! 기초 문법부터 차근차근 시작하면 충분합니다.",
+                            "변수, 조건문, 반복문 익히기");
+        };
     }
 
     // ── 점수 계산 ──────────────────────────────────────────────────
     private int calcOnboardingScore(UserProfileDto profile) {
-        int score = switch (profile.getCodingLevel()) {
+        int score = switch (profile.getCodingLevel() != null ? profile.getCodingLevel() : "NONE") {
             case "LOTS" -> 60;
             case "SOME" -> 30;
             default     -> 0;
@@ -156,13 +101,5 @@ public class RecommendationService {
         if (score < 50)  return "초급";
         if (score < 75)  return "중급";
         return "고급";
-    }
-
-    private String codingLevelLabel(String level) {
-        return switch (level) {
-            case "LOTS" -> "많이 해봤어요";
-            case "SOME" -> "조금 해봤어요";
-            default     -> "처음이에요";
-        };
     }
 }
