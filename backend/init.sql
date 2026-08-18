@@ -198,3 +198,17 @@ CREATE TABLE IF NOT EXISTS user_leagues (
     updated_at TIMESTAMP   NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, season)              -- 시즌당 1레코드
     );
+
+-- ────────────────────────────────────────────
+-- 12. problem_scraps (스크랩한 문제 — 문제은행 탭 > 스크랩)
+-- ────────────────────────────────────────────
+-- 오답노트는 별도 테이블이 없다. user_problem_records의 is_correct=false 기록을 그대로 쓴다.
+CREATE TABLE IF NOT EXISTS problem_scraps (
+                                              id         BIGSERIAL PRIMARY KEY,
+                                              user_id    BIGINT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    problem_id BIGINT    NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT uk_problem_scraps_user_problem UNIQUE (user_id, problem_id)  -- 같은 문제 중복 스크랩 방지
+    );
+
+CREATE INDEX IF NOT EXISTS idx_scraps_user ON problem_scraps(user_id);
