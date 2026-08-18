@@ -12,6 +12,7 @@ import {problemSets} from '../data/mockProblems';
 import type {Problem} from '../types/problem';
 import {TYPE_LABEL, toCodeLang} from '../types/problem';
 import {problemApi} from '../api/problemApi';
+import {scrapApi} from '../api/scrapApi';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import CodeBlock, {formatCode} from '../components/CodeBlock';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -81,6 +82,54 @@ export default function ProblemSolveScreen() {
   const [results, setResults] = useState<{id: number; correct: boolean}[]>([]);
 
   const problem: Problem | undefined = problems[currentIndex];
+
+  // ── 스크랩(북마크) ──────────────────────────────────────────────
+  // 목 데모 문제는 DB에 없어 스크랩할 수 없다(서버가 PROBLEM_NOT_FOUND). isReal일 때만 동작시킨다.
+  const [scrapped, setScrapped] = useState(false);
+  const [scrapBusy, setScrapBusy] = useState(false);
+
+  useEffect(() => {
+    if (!isReal || problem?.id == null) {
+      setScrapped(false);
+      return;
+    }
+    let alive = true;
+    scrapApi
+      .isScrapped(problem.id)
+      .then(v => {
+        if (alive) setScrapped(v);
+      })
+      .catch(() => {
+        // 비로그인·네트워크 오류 시엔 해제 상태로 둔다. 눌렀을 때 다시 알린다.
+        if (alive) setScrapped(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [isReal, problem?.id]);
+
+  const handleToggleScrap = async () => {
+    if (!isReal || problem?.id == null) {
+      Alert.alert('스크랩', '연습용 문제는 스크랩할 수 없어요.');
+      return;
+    }
+    if (scrapBusy) return;
+    setScrapBusy(true);
+    try {
+      const next = await scrapApi.toggle(problem.id);
+      setScrapped(next);
+      Alert.alert('스크랩', next ? '스크랩에 저장했어요.' : '스크랩에서 뺐어요.');
+    } catch (e: any) {
+      Alert.alert(
+        '스크랩하지 못했어요',
+        e?.status === 401 || e?.status === 403
+          ? '로그인이 필요해요.'
+          : '잠시 후 다시 시도해주세요.',
+      );
+    } finally {
+      setScrapBusy(false);
+    }
+  };
 
   // 실 문제 로드 (problemId 단건일 때만; 생성문제 배열은 이미 state에 있음)
   useEffect(() => {
@@ -227,8 +276,12 @@ export default function ProblemSolveScreen() {
         </TouchableOpacity>
         <Text style={styles.navTitle}>문제 풀기</Text>
         <View style={styles.navRight}>
-          <TouchableOpacity onPress={() => Alert.alert('북마크', '북마크에 저장했어요.')} hitSlop={8}>
-            <MaterialIcons name="bookmark-border" size={22} color={colors.text} />
+          <TouchableOpacity onPress={handleToggleScrap} disabled={scrapBusy} hitSlop={8}>
+            <MaterialIcons
+              name={scrapped ? 'bookmark' : 'bookmark-border'}
+              size={22}
+              color={scrapped ? colors.primary : colors.text}
+            />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => Alert.alert('메뉴', '준비 중이에요.')} hitSlop={8}>
             <MaterialIcons name="more-vert" size={22} color={colors.text} />

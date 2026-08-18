@@ -14,6 +14,8 @@ import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
 import OnboardingResultScreen from '../screens/OnboardingResultScreen';
+import WrongNoteScreen from '../screens/WrongNoteScreen';
+import ScrapScreen from '../screens/ScrapScreen';
 import {useTheme} from '../theme/ThemeContext';
 import type {Problem} from '../types/problem';
 
@@ -24,6 +26,9 @@ export type RootStackParamList = {
   OnboardingResult: {difficulty: string; reason: string; focusPoint: string};
   Main: undefined;
   ProfileEdit: undefined;
+  // 문제은행 탭에서 진입 (오답노트 / 스크랩)
+  WrongNote: undefined;
+  Scrap: undefined;
   // problems: AI 생성문제 직접 전달 / problemId: 백엔드 실 문제 1개 / setId: 목 데모
   ProblemSolve: {setId?: string; problemId?: number; initialIndex?: number; problems?: Problem[]};
 };
@@ -98,6 +103,8 @@ export default function AppNavigator() {
         <Stack.Screen name="OnboardingResult" component={OnboardingResultScreen} />
         <Stack.Screen name="Main" component={TabNavigator} />
         <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} />
+        <Stack.Screen name="WrongNote" component={WrongNoteScreen} />
+        <Stack.Screen name="Scrap" component={ScrapScreen} />
         <Stack.Screen name="ProblemSolve" component={ProblemSolveScreen} />
       </Stack.Navigator>
     </NavigationContainer>
