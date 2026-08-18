@@ -44,7 +44,12 @@ public class SeedSet {
     @Column(columnDefinition = "jsonb")
     private List<Map<String, Object>> problems;
 
-    @Column(columnDefinition = "vector(1536)")
+    /**
+     * INSERT/UPDATE 대상에서 제외한다. Hibernate가 이 컬럼을 varchar로 바인딩하면
+     * (값이 null이어도) pgvector가 타입 불일치로 거부하므로,
+     * 값은 항상 SeedSetRepository.updateEmbedding()의 명시적 CAST로만 채운다.
+     */
+    @Column(columnDefinition = "vector(1536)", insertable = false, updatable = false)
     private String embedding;
 
     @Builder
