@@ -31,3 +31,21 @@ export function signup(email: string, password: string, nickname: string, passwo
 export function refreshAccessToken(refreshToken: string) {
   return post<{accessToken: string}>('/api/auth/refresh', {refreshToken});
 }
+
+/**
+ * 서버의 refresh token을 폐기한다.
+ * 이 호출이 없으면 앱에서 토큰을 지워도 DB에 refresh token이 남아
+ * 그 값을 가진 쪽은 계속 액세스 토큰을 재발급받을 수 있다.
+ */
+export async function logout(accessToken: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/auth/logout`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+}

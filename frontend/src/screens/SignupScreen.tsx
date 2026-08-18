@@ -58,7 +58,9 @@ export default function SignupScreen() {
         ['accessToken', accessToken],
         ['refreshToken', refreshToken],
       ]);
-      navigation.replace('Onboarding');
+      // replace는 Signup만 걷어내고 그 아래(Login)를 남겨서, 뒤로가기로 로그인 화면에 도달할 수 있었다.
+      // 거기서 "둘러보기"를 누르면 이미 가입·로그인된 상태로 온보딩을 건너뛴다. 스택을 통째로 비운다.
+      navigation.reset({index: 0, routes: [{name: 'Onboarding'}]});
     } catch (e: any) {
       Alert.alert('회원가입 실패', e.message || '다시 시도해주세요.');
     } finally {

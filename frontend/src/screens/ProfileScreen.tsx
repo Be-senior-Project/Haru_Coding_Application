@@ -12,6 +12,7 @@ import {RootStackParamList} from '../navigation/AppNavigator';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import {userApi, type UserProfile} from '../api/userApi';
+import {logout as logoutApi} from '../api/authApi';
 
 const FONT_SIZE_OPTIONS: {key: FontSizeKey; size: number}[] = [
   {key: 'small', size: 13},
@@ -60,6 +61,16 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = async () => {
+    // 서버의 refresh token부터 폐기한다. 이게 빠지면 앱에서만 지워지고 DB에는 그대로 남는다.
+    const token = await AsyncStorage.getItem('accessToken');
+    if (token) {
+      try {
+        await logoutApi(token);
+      } catch (e) {
+        // 네트워크·토큰 만료로 실패해도 로그아웃 자체는 진행한다(앱에 갇히지 않도록).
+        console.warn('서버 로그아웃 실패, 로컬 토큰만 삭제합니다', e);
+      }
+    }
     await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
     setHasToken(false);
     setProfile(null);
