@@ -23,4 +23,11 @@ export const userApi = {
 
   // 회원 탈퇴
   deleteMe: () => api.del<void>('/api/users/me'),
+
+  /**
+   * 온보딩 답변 저장. 가입이 확정된 직후에만 호출한다.
+   * 추천 난이도는 서버가 답변에서 계산하므로 보내지 않는다.
+   */
+  saveOnboarding: (codingLevel: string, cotePrepared: boolean) =>
+    api.post<void>('/api/users/me/onboarding', {codingLevel, cotePrepared}),
 };

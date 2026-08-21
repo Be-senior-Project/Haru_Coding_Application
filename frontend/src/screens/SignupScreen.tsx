@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -16,8 +15,6 @@ import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import type {RootStackParamList} from '../navigation/AppNavigator';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import {signup, login} from '../api/authApi';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 export default function SignupScreen() {
@@ -33,7 +30,6 @@ export default function SignupScreen() {
   const [showPw, setShowPw] = useState(false);
   const [showPwConfirm, setShowPwConfirm] = useState(false);
   const [agreed, setAgreed] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   const mismatch = passwordConfirm.length > 0 && password !== passwordConfirm;
 
@@ -50,22 +46,12 @@ export default function SignupScreen() {
       Alert.alert('약관 동의', '이용약관 및 개인정보 처리방침에 동의해주세요.');
       return;
     }
-    setLoading(true);
-    try {
-      await signup(email.trim(), password, name.trim(), passwordConfirm);
-      const {accessToken, refreshToken} = await login(email.trim(), password);
-      await AsyncStorage.multiSet([
-        ['accessToken', accessToken],
-        ['refreshToken', refreshToken],
-      ]);
-      // replace는 Signup만 걷어내고 그 아래(Login)를 남겨서, 뒤로가기로 로그인 화면에 도달할 수 있었다.
-      // 거기서 "둘러보기"를 누르면 이미 가입·로그인된 상태로 온보딩을 건너뛴다. 스택을 통째로 비운다.
-      navigation.reset({index: 0, routes: [{name: 'Onboarding'}]});
-    } catch (e: any) {
-      Alert.alert('회원가입 실패', e.message || '다시 시도해주세요.');
-    } finally {
-      setLoading(false);
-    }
+    // 여기서는 서버를 부르지 않는다.
+    // 예전엔 이 버튼에서 바로 가입시켜서, 온보딩 도중 이탈하면 온보딩 값이 빈 계정만 DB에 남았다.
+    // 실제 가입은 온보딩 결과 화면의 "가입하기"에서 한 번에 이뤄진다.
+    navigation.navigate('Onboarding', {
+      signup: {email: email.trim(), password, nickname: name.trim()},
+    });
   };
 
   return (
@@ -153,15 +139,9 @@ export default function SignupScreen() {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.signupBtn, loading && styles.btnDisabled]}
-            onPress={handleSignup}
-            disabled={loading}>
-            {loading ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.signupBtnText}>가입하기</Text>
-            )}
+          {/* 실제 가입은 온보딩 결과 화면에서 이뤄지므로 여기서는 "다음"이다 */}
+          <TouchableOpacity style={styles.signupBtn} onPress={handleSignup}>
+            <Text style={styles.signupBtnText}>다음</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.bottomLink} onPress={() => navigation.navigate('Login')}>

@@ -1,11 +1,14 @@
-import React, {useMemo} from 'react';
+import React, {useMemo, useState} from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {RouteProp} from '@react-navigation/native';
@@ -13,6 +16,8 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import type {RootStackParamList} from '../navigation/AppNavigator';
+import {signup as signupApi, login as loginApi} from '../api/authApi';
+import {userApi} from '../api/userApi';
 
 // 난이도 → 테마 토큰. 색 값은 ThemeContext 한 곳에서만 관리한다.
 function difficultyTone(difficulty: string, c: Colors): string {
@@ -46,9 +51,46 @@ export default function OnboardingResultScreen() {
   const styles = useMemo(() => makeStyles(colors, fontScale), [colors, fontScale]);
   const insets = useSafeAreaInsets();
 
-  const {difficulty, reason, focusPoint} = route.params;
+  const {signup, codingLevel, cotePrepared, difficulty, reason, focusPoint} = route.params;
   const diffColor = difficultyTone(difficulty, colors);
   const diffIcon = DIFFICULTY_ICON[difficulty] ?? 'star';
+
+  const [submitting, setSubmitting] = useState(false);
+
+  /**
+   * 여기가 계정이 실제로 만들어지는 유일한 지점이다.
+   * 가입 → 로그인 → 온보딩 답변 저장을 한 번에 처리해, 중간 이탈 시 DB에 흔적이 남지 않게 한다.
+   */
+  const handleFinish = async () => {
+    if (submitting) {return;}
+    setSubmitting(true);
+    try {
+      await signupApi(signup.email, signup.password, signup.nickname, signup.password);
+      const {accessToken, refreshToken} = await loginApi(signup.email, signup.password);
+      await AsyncStorage.multiSet([
+        ['accessToken', accessToken],
+        ['refreshToken', refreshToken],
+      ]);
+
+      // 온보딩 저장이 실패해도 계정은 이미 만들어졌다. 로그인까지 끝났으니 홈으로 보내고,
+      // 답변은 나중에 다시 받을 수 있으므로 여기서 흐름을 막지 않는다.
+      try {
+        await userApi.saveOnboarding(codingLevel, cotePrepared);
+      } catch (e) {
+        console.warn('온보딩 답변 저장 실패', e);
+      }
+
+      navigation.reset({index: 0, routes: [{name: 'Main'}]});
+    } catch (e: any) {
+      Alert.alert(
+        '가입하지 못했어요',
+        e?.message || '입력하신 정보를 다시 확인해주세요.',
+        [{text: '확인', onPress: () => navigation.navigate('Signup')}],
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <ScrollView
@@ -120,13 +162,20 @@ export default function OnboardingResultScreen() {
         </Text>
       </View>
 
-      {/* 시작하기 버튼 */}
+      {/* 가입하기 버튼 — 계정 생성이 여기서 일어난다 */}
       <TouchableOpacity
         style={styles.startBtn}
-        onPress={() => navigation.reset({index: 0, routes: [{name: 'Main'}]})}
+        onPress={handleFinish}
+        disabled={submitting}
         activeOpacity={0.85}>
-        <Text style={styles.startBtnText}>시작하기</Text>
-        <MaterialIcons name="arrow-forward" size={18} color="#FFF" />
+        {submitting ? (
+          <ActivityIndicator color="#FFF" />
+        ) : (
+          <>
+            <Text style={styles.startBtnText}>가입하기</Text>
+            <MaterialIcons name="arrow-forward" size={18} color="#FFF" />
+          </>
+        )}
       </TouchableOpacity>
     </ScrollView>
   );
