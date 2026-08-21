@@ -34,6 +34,7 @@ public class ProblemSetService {
     private final UserXpLogRepository xpLogRepository;
     private final TopicRepository topicRepository;
     private final GenerationPipeline generationPipeline;
+    private final RecommendationService recommendationService;
 
     private static final int XP_PER_CORRECT = 10;
     private static final int XP_STREAK_BONUS = 5;
@@ -66,7 +67,10 @@ public class ProblemSetService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        int difficulty = mapDifficulty(user.getRecommendedDifficulty());
+        // recommended_difficulty를 읽어 쓰던 자리. 컬럼은 DB에 남아 있지만 서버는 쓰지 않고,
+        // 원본 답변(coding_level/cote_prepared)에서 매번 계산한다.
+        int difficulty = recommendationService.onboardingBaseLevel(
+                user.getCodingLevel(), user.isCotePrepared());
         String language = mapLanguage(user.getPreferredLanguage());
         String category = difficulty == 0 ? "Basic/Introductory" : "Algorithm/Data Structure";
 
@@ -89,16 +93,6 @@ public class ProblemSetService {
         problemSetRepository.save(set); // cascade로 items 함께 저장
 
         return ProblemSetResponse.from(set, false);
-    }
-
-    // 추천 난이도 라벨(입문/초급/중급/고급) → 생성 난이도(0/1/2)
-    private int mapDifficulty(String recommended) {
-        if (recommended == null) return 0;
-        return switch (recommended) {
-            case "초급" -> 1;
-            case "중급", "고급" -> 2;
-            default -> 0; // 입문 및 미설정
-        };
     }
 
     // 생성 난이도(0/1/2) → 세트 라벨용 DifficultyLevel
