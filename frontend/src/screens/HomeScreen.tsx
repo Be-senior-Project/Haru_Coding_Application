@@ -5,23 +5,28 @@ import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../navigation/AppNavigator';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {useTheme, tierColor, type Colors} from '../theme/ThemeContext';
+import {difficultyLabel, difficultyColor, difficultySoft} from '../types/problem';
+import {useTheme, tierFromLevel, type Colors} from '../theme/ThemeContext';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import {recommendationApi, type RecommendationResponse} from '../api/recommendationApi';
 import {problemApi} from '../api/problemApi';
 import {statsApi, type StatsData} from '../api/statsApi';
 import {userApi, type UserProfile} from '../api/userApi';
-
-// 추천 학습 주제 (데모) — 색은 테마 토큰 키로만 지정하고 실제 값은 렌더 시 해석
-const TOPICS: {label: string; count: number; icon: string; tone: TopicTone; progress: number}[] = [
-  {label: '자료구조', count: 20, icon: 'format-list-bulleted', tone: 'success', progress: 0.4},
-  {label: '그리디', count: 18, icon: 'bolt', tone: 'info', progress: 0.3},
-  {label: '동적 계획법', count: 25, icon: 'memory', tone: 'primary', progress: 0.55},
-  {label: '이진 탐색', count: 15, icon: 'search', tone: 'streak', progress: 0.2},
-];
+import {topicApi, type Topic} from '../api/topicApi';
 
 type TopicTone = 'success' | 'info' | 'primary' | 'streak';
+
+// 카드 색은 순서대로 돌려쓴다 (주제는 백엔드 /api/topics에서 옴)
+const TONES: TopicTone[] = ['success', 'info', 'primary', 'streak'];
+
+// /api/topics 를 못 불러왔을 때만 쓰는 폴백 (백엔드 seed와 동일한 주제)
+const FALLBACK_TOPICS: Topic[] = [
+  {id: -1, name: '알고리즘', icon: 'account-tree'},
+  {id: -2, name: '자료구조', icon: 'data-object'},
+  {id: -3, name: '언어/문법', icon: 'code'},
+  {id: -4, name: '모의테스트', icon: 'assignment'},
+];
 
 // 토픽 카드의 강조색/배경색을 현재 테마에서 꺼낸다 (다크모드에서 같이 뒤집히도록)
 function topicTone(tone: TopicTone, c: Colors): {accent: string; tint: string} {
@@ -33,20 +38,12 @@ function topicTone(tone: TopicTone, c: Colors): {accent: string; tint: string} {
   }
 }
 
-// 리그 티어 영문(백엔드) → 한글 표시 라벨
-const TIER_KO: Record<string, string> = {
-  BRONZE: '브론즈',
-  SILVER: '실버',
-  GOLD: '골드',
-  PLATINUM: '플래티넘',
-  DIAMOND: '다이아',
-};
-
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [streak, setStreak] = useState(0);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [_rec, setRec] = useState<RecommendationResponse | null>(null);
+  const [rec, setRec] = useState<RecommendationResponse | null>(null);
+  const [topics, setTopics] = useState<Topic[]>([]);
   const [stats, setStats] = useState<StatsData | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [todayCount, setTodayCount] = useState(0); // 오늘 푼 문제 수
@@ -69,6 +66,10 @@ export default function HomeScreen() {
     setTodayCount(tc ? parseInt(tc, 10) : 0);
     if (saved) {setStreak(parseInt(saved, 10));}
     setIsLoggedIn(!!token);
+    try {
+      const list = await topicApi.list(); // 공개 API — 비로그인도 주제는 보여준다
+      if (list?.length) {setTopics(list);}
+    } catch {}
     if (token) {
       try {
         setRec(await recommendationApi.get(5));
@@ -115,7 +116,27 @@ export default function HomeScreen() {
   const displayStreak = stats?.currentStreak ?? (streak || 7);
   const solvedCount = stats?.totalSolved ?? 42;
   const accuracy = stats?.accuracyRate ?? 68;
-  const tier = profile?.tier ? TIER_KO[profile.tier] ?? profile.tier : '브론즈'; // 실제 티어(/api/users/me)
+  const tier = tierFromLevel(profile?.level ?? 1); // 백엔드에 티어 필드가 없어 level에서 파생
+
+  // 추천 1순위 문제 (/api/recommendations)
+  const topRec = rec?.recommendations?.[0] ?? null;
+
+  // 주제 카드: /api/topics + 내 카테고리 통계(정답률·푼 문제 수)
+  const topicCards = useMemo(() => {
+    const statById = new Map((stats?.categoryStats ?? []).map(c => [c.topicId, c]));
+    return (topics.length > 0 ? topics : FALLBACK_TOPICS).map((t, i) => {
+      const s = statById.get(t.id);
+      const acc = Math.min(Number(s?.accuracyRate) || 0, 100);
+      return {
+        id: t.id,
+        label: t.name,
+        icon: t.icon || 'category',
+        tone: TONES[i % TONES.length],
+        solved: Number(s?.totalSolved) || 0,
+        progress: acc / 100,
+      };
+    });
+  }, [topics, stats]);
 
   // 오늘의 목표(문제 갯수 기준): 하루 목표 문제 수 대비 "오늘" 푼 문제 수
   const dailyGoal = 3;
@@ -168,15 +189,32 @@ export default function HomeScreen() {
         <Text style={styles.sectionTitle}>오늘의 문제</Text>
       </View>
       <View style={styles.problemCard}>
-        <View style={styles.todayRow}>
+        {/* 추천 API가 준 1순위 문제가 있으면 그 문제로 바로 갈 수 있게 보여준다 */}
+        <TouchableOpacity
+          style={styles.todayRow}
+          activeOpacity={topRec ? 0.85 : 1}
+          disabled={!topRec}
+          onPress={() => topRec && navigation.navigate('ProblemSolve', {problemId: topRec.problemId})}>
           <View style={styles.problemIconBox}>
             <MaterialIcons name="bolt" size={26} color={colors.primary} />
           </View>
           <View style={styles.todayTextWrap}>
-            <Text style={styles.todayTitle}>오늘의 추천 문제</Text>
-            <Text style={styles.todaySub}>지금 실력에 맞는 문제를 받아보세요</Text>
+            {topRec && (
+              <View style={[styles.diffBadge, {backgroundColor: difficultySoft(topRec.difficulty, colors)}]}>
+                <Text style={[styles.diffBadgeText, {color: difficultyColor(topRec.difficulty, colors)}]}>
+                  {difficultyLabel(topRec.difficulty)}
+                </Text>
+              </View>
+            )}
+            <Text style={styles.todayTitle} numberOfLines={1}>
+              {topRec ? topRec.title : '오늘의 추천 문제'}
+            </Text>
+            <Text style={styles.todaySub} numberOfLines={2}>
+              {topRec ? topRec.reason : '지금 실력에 맞는 문제를 받아보세요'}
+            </Text>
           </View>
-        </View>
+          {topRec && <MaterialIcons name="chevron-right" size={22} color={colors.subText} />}
+        </TouchableOpacity>
         <TouchableOpacity
           style={[styles.solveBtn, starting && styles.solveBtnDisabled]}
           onPress={handleStartSet}
@@ -202,7 +240,7 @@ export default function HomeScreen() {
         <View style={styles.statDivider} />
         <Stat icon="bar-chart" iconColor={colors.info} value={String(solvedCount)} label="문제 해결" colors={colors} fs={fontScale} />
         <View style={styles.statDivider} />
-        <Stat icon="military-tech" iconColor={tierColor(profile?.tier)} value={tier} label="현재 티어" colors={colors} fs={fontScale} />
+        <Stat icon="military-tech" iconColor={tier.color} value={tier.label} label="현재 티어" colors={colors} fs={fontScale} />
         <View style={styles.statDivider} />
         <Stat icon="pie-chart" iconColor={colors.primary} value={`${accuracy}%`} label="정답률" colors={colors} fs={fontScale} />
       </View>
@@ -215,18 +253,20 @@ export default function HomeScreen() {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.topicRow}>
-        {TOPICS.map(t => {
+        {topicCards.map(t => {
           const {accent, tint} = topicTone(t.tone, colors);
           return (
             <TouchableOpacity
-              key={t.label}
+              key={t.id}
               style={[styles.topicCard, {backgroundColor: tint}]}
               onPress={handleStartSet}>
               <View style={styles.topicIconBox}>
                 <MaterialIcons name={t.icon} size={20} color={accent} />
               </View>
-              <Text style={styles.topicLabel}>{t.label}</Text>
-              <Text style={styles.topicCount}>{t.count}문제</Text>
+              <Text style={styles.topicLabel} numberOfLines={1}>{t.label}</Text>
+              <Text style={styles.topicCount}>
+                {t.solved > 0 ? `${t.solved}문제 풀이` : '아직 안 풀었어요'}
+              </Text>
               <View style={styles.topicBarTrack}>
                 <View style={[styles.topicBarFill, {width: `${t.progress * 100}%`, backgroundColor: accent}]} />
               </View>

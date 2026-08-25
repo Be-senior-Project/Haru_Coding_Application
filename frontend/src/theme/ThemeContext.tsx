@@ -42,6 +42,21 @@ export function tierColor(tier?: string): string {
   return TIER_COLOR[tier?.toUpperCase() ?? ''] ?? TIER_COLOR.BRONZE;
 }
 
+export const TIER_KO: Record<string, string> = {
+  BRONZE: '브론즈',
+  SILVER: '실버',
+  GOLD: '골드',
+  PLATINUM: '플래티넘',
+  DIAMOND: '다이아',
+};
+
+// 백엔드 프로필에 티어 필드가 없어 level에서 파생한다 (LeagueTier 등급 구간과 동일).
+export function tierFromLevel(level: number): {key: string; label: string; color: string} {
+  const key =
+    level < 5 ? 'BRONZE' : level < 10 ? 'SILVER' : level < 20 ? 'GOLD' : level < 30 ? 'PLATINUM' : 'DIAMOND';
+  return {key, label: TIER_KO[key], color: TIER_COLOR[key]};
+}
+
 export type FontSizeKey = 'small' | 'medium' | 'large';
 
 export const FONT_SCALE: Record<FontSizeKey, number> = {
