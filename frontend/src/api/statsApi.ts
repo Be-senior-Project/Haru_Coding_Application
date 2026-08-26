@@ -27,6 +27,9 @@ export interface StatsData {
   recentRecords: RecentRecord[];
 }
 
+export type StatsPeriod = 'ALL' | 'WEEK' | 'MONTH' | 'YEAR';
+
 export const statsApi = {
-  getMyStats: () => api.get<StatsData>('/api/stats/me'),
+  getMyStats: (period: StatsPeriod = 'ALL') =>
+    api.get<StatsData>(`/api/stats/me?period=${period}`),
 };

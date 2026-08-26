@@ -17,8 +17,9 @@ public class StatsController {
 
     @GetMapping("/me")
     public ApiResponse<StatsResponse> getMyStats(
-            @RequestHeader("Authorization") String token) {
+            @RequestHeader("Authorization") String token,
+            @RequestParam(defaultValue = "ALL") String period) {
         Long userId = jwtProvider.getUserId(token.replace("Bearer ", ""));
-        return ApiResponse.success(statsService.getStats(userId));
+        return ApiResponse.success(statsService.getStats(userId, period));
     }
 }

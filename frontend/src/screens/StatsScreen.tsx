@@ -4,11 +4,27 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import {useFocusEffect} from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {statsApi, type StatsData} from '../api/statsApi';
+import {statsApi, type StatsData, type StatsPeriod} from '../api/statsApi';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 const WEEK_DAYS = ['월', '화', '수', '목', '금', '토', '일'];
-const TABS = ['전체', '주간', '월간', '연간'];
+const TABS = ['전체', '주간', '월간', '연간'] as const;
+const TAB_TO_PERIOD: Record<(typeof TABS)[number], StatsPeriod> = {
+  전체: 'ALL',
+  주간: 'WEEK',
+  월간: 'MONTH',
+  연간: 'YEAR',
+};
+
+// 탭별로 "푼 문제 수" 카드에 붙일 설명
+function solvedLabel(tab: string): string {
+  switch (tab) {
+    case '주간': return '이번 주 푼 문제';
+    case '월간': return '이번 달 푼 문제';
+    case '연간': return '올해 푼 문제';
+    default: return '전체 푼 문제';
+  }
+}
 
 const md = (d: Date) => `${d.getMonth() + 1}.${d.getDate()}`;
 
@@ -43,26 +59,32 @@ export default function StatsScreen() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasToken, setHasToken] = useState(false);
-  const [tab, setTab] = useState('전체');
+  const [tab, setTab] = useState<(typeof TABS)[number]>('전체');
 
   useFocusEffect(
     useCallback(() => {
-      loadStats();
+      loadStats(tab);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []),
   );
 
-  const loadStats = async () => {
+  const loadStats = async (t: (typeof TABS)[number]) => {
     const token = await AsyncStorage.getItem('accessToken');
     setHasToken(!!token);
     if (!token) {return;}
     setLoading(true);
     try {
-      setStats(await statsApi.getMyStats());
+      setStats(await statsApi.getMyStats(TAB_TO_PERIOD[t]));
     } catch (e) {
       console.error('통계 로드 실패', e);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleTabPress = (t: (typeof TABS)[number]) => {
+    setTab(t);
+    loadStats(t);
   };
 
   // weeklyActivity → 항상 길이 7의 "유효한 숫자"로 정규화 (월~일)
@@ -71,7 +93,6 @@ export default function StatsScreen() {
     return Array.from({length: 7}, (_, i) => Number(w[i]) || 0);
   }, [stats]);
   const maxBar = Math.max(...week, 1);
-  const weekTotal = week.reduce((a, b) => a + b, 0);
   const todayIdx = (new Date().getDay() + 6) % 7; // 월=0 기준
 
   // 약점 영역: 푼 적 있는 주제 중 정답률 최저 (실제 데이터)
@@ -100,7 +121,6 @@ export default function StatsScreen() {
 
   const accuracy = stats?.accuracyRate ?? 0;
   const period = periodInfo(tab);
-  const isAllTab = tab === '전체';
 
   return (
     <ScrollView
@@ -115,7 +135,7 @@ export default function StatsScreen() {
       {/* 기간 탭 */}
       <View style={styles.tabRow}>
         {TABS.map(t => (
-          <TouchableOpacity key={t} style={styles.tab} onPress={() => setTab(t)}>
+          <TouchableOpacity key={t} style={styles.tab} onPress={() => handleTabPress(t)}>
             <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t}</Text>
             {tab === t && <View style={styles.tabUnderline} />}
           </TouchableOpacity>
@@ -130,9 +150,9 @@ export default function StatsScreen() {
         </View>
         <View style={styles.weekTop}>
           <View style={styles.weekTopLeft}>
-            <Text style={styles.cardSub}>{isAllTab ? '전체 푼 문제' : '최근 7일 푼 문제'}</Text>
+            <Text style={styles.cardSub}>{solvedLabel(tab)}</Text>
             <View style={styles.weekValueRow}>
-              <Text style={styles.weekValue}>{isAllTab ? (stats?.totalSolved ?? 0) : weekTotal}</Text>
+              <Text style={styles.weekValue}>{stats?.totalSolved ?? 0}</Text>
               <Text style={styles.weekUnit}> 문제</Text>
             </View>
           </View>

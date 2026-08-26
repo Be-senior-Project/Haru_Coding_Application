@@ -60,6 +60,13 @@ public class User {
     // coding_level + cote_prepared로 언제든 다시 계산되는 값이라(RecommendationService.onboardingBaseLevel)
     // 따로 저장해두면 두 값이 어긋날 뿐이다. 그래서 엔티티에서 필드를 뺐다.
 
+    // 유저가 직접 조절하는 설정 (MY-018/MY-019)
+    @Column(nullable = false)
+    private int dailyGoalCount = 3;
+
+    @Column(length = 2)
+    private String difficultyLevel; // L1~L5, NULL이면 자동 추천(estimateLevel) 유지
+
     private String fcmToken;
 
     @CreationTimestamp
@@ -87,10 +94,14 @@ public class User {
         this.cotePrepared = false;
     }
 
-    public void updateProfile(String nickname, String preferredLanguage, String fcmToken) {
+    /** difficultyLevel: null=미변경, "AUTO"=자동 추천으로 되돌림(내부적으로 null 저장), "L1"~"L5"=고정 지정. */
+    public void updateProfile(String nickname, String preferredLanguage, String fcmToken,
+                               Integer dailyGoalCount, String difficultyLevel) {
         if (nickname != null) this.nickname = nickname;
         if (preferredLanguage != null) this.preferredLanguage = preferredLanguage;
         if (fcmToken != null) this.fcmToken = fcmToken;
+        if (dailyGoalCount != null) this.dailyGoalCount = dailyGoalCount;
+        if (difficultyLevel != null) this.difficultyLevel = "AUTO".equals(difficultyLevel) ? null : difficultyLevel;
     }
 
     /** 온보딩 답변 기록. 가입이 확정된 뒤에만 호출된다. */

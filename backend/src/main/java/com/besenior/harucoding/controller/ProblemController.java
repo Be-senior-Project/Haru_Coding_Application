@@ -2,6 +2,7 @@ package com.besenior.harucoding.controller;
 
 import com.besenior.harucoding.DTO.AttemptRequest;
 import com.besenior.harucoding.DTO.AttemptResultResponse;
+import com.besenior.harucoding.DTO.CodeRunResponse;
 import com.besenior.harucoding.DTO.ProblemResponse;
 import com.besenior.harucoding.global.enums.ProblemType;
 import com.besenior.harucoding.global.jwt.JwtProvider;
@@ -45,5 +46,15 @@ public class ProblemController {
             @RequestBody AttemptRequest request) {
         Long userId = jwtProvider.getUserId(token.replace("Bearer ", ""));
         return ApiResponse.success(problemService.attempt(userId, id, request));
+    }
+
+    /** 코드 실행(SOLVE-007) — 예시 입력으로 즉시 실행해 결과만 보여준다. 채점 이력 미저장. 인증 필요. */
+    @PostMapping("/{id}/run")
+    public ApiResponse<CodeRunResponse> run(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long id,
+            @RequestBody AttemptRequest request) {
+        jwtProvider.getUserId(token.replace("Bearer ", "")); // 인증만 확인
+        return ApiResponse.success(CodeRunResponse.from(problemService.run(id, request.getAnswer())));
     }
 }

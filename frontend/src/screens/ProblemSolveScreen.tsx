@@ -11,7 +11,7 @@ import type {RootStackParamList} from '../navigation/AppNavigator';
 import {problemSets} from '../data/mockProblems';
 import type {Problem} from '../types/problem';
 import {TYPE_LABEL, toCodeLang} from '../types/problem';
-import {problemApi} from '../api/problemApi';
+import {problemApi, type CodeRunResult} from '../api/problemApi';
 import {scrapApi} from '../api/scrapApi';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import CodeBlock, {formatCode} from '../components/CodeBlock';
@@ -65,6 +65,10 @@ export default function ProblemSolveScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [startedAt, setStartedAt] = useState(Date.now());
+
+  // 코드 실행 (SOLVE-007) — 채점과 별개로 예시 입력 기준 결과만 즉시 보여준다
+  const [running, setRunning] = useState(false);
+  const [runResult, setRunResult] = useState<CodeRunResult | null>(null);
 
   // 경과 시간 타이머 (1초마다 갱신, 문제 바뀌면 startedAt 리셋되어 자동 초기화)
   const [nowTick, setNowTick] = useState(Date.now());
@@ -168,6 +172,7 @@ export default function ProblemSolveScreen() {
     setResultAnswer(null);
     setResultExplain('');
     setStartedAt(Date.now());
+    setRunResult(null);
   }, [currentIndex, problem]);
 
   if (loading) {
@@ -244,6 +249,33 @@ export default function ProblemSolveScreen() {
         await AsyncStorage.setItem('streak', String(newStreak));
         await AsyncStorage.setItem('lastSolvedDate', today);
       }
+    }
+  };
+
+  const handleRunCode = async () => {
+    if (!isReal) {
+      Alert.alert('실행', '예시 문제는 코드 실행을 지원하지 않아요.');
+      return;
+    }
+    setRunning(true);
+    setRunResult(null);
+    try {
+      const res = await problemApi.run(problem.id, buildAnswerPayload());
+      setRunResult(res);
+    } catch (e: any) {
+      Alert.alert('실행 실패', e.message || '로그인이 필요하거나 네트워크 오류예요.');
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const runReasonLabel = (reason: string | null): string => {
+    switch (reason) {
+      case 'compile_error': return '컴파일 오류';
+      case 'runtime_error': return '실행 중 오류';
+      case 'timeout': return '시간 초과';
+      case 'output_mismatch': return '예시 출력과 달라요';
+      default: return '실행할 수 없어요';
     }
   };
 
@@ -367,10 +399,17 @@ export default function ProblemSolveScreen() {
       {!submitted ? (
         <View style={styles.actionRow}>
           <TouchableOpacity
-            style={styles.runBtn}
-            onPress={() => Alert.alert('실행', '코드 실행 기능은 준비 중이에요.')}>
-            <MaterialIcons name="play-arrow" size={18} color={colors.text} />
-            <Text style={styles.runBtnText}>실행</Text>
+            style={[styles.runBtn, running && styles.btnDisabled]}
+            onPress={handleRunCode}
+            disabled={running}>
+            {running ? (
+              <ActivityIndicator size="small" color={colors.text} />
+            ) : (
+              <>
+                <MaterialIcons name="play-arrow" size={18} color={colors.text} />
+                <Text style={styles.runBtnText}>실행</Text>
+              </>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.hintBtn}
@@ -392,7 +431,26 @@ export default function ProblemSolveScreen() {
             )}
           </TouchableOpacity>
         </View>
-      ) : (
+      ) : null}
+
+      {!submitted && runResult && (
+        <View style={[styles.runResultBox, runResult.ok ? styles.correctCard : styles.wrongCard]}>
+          <Text style={styles.runResultTitle}>
+            {runResult.ok ? '✅ 예시 출력과 일치해요' : `⚠️ ${runReasonLabel(runResult.reason)}`}
+          </Text>
+          {runResult.actualOutput != null && (
+            <>
+              <Text style={styles.answerLabel}>실행 결과</Text>
+              <CodeBlock code={runResult.actualOutput} language={toCodeLang(problem.language)} />
+            </>
+          )}
+          {!runResult.ok && !!runResult.detail && (
+            <Text style={styles.resultExplain}>{runResult.detail}</Text>
+          )}
+        </View>
+      )}
+
+      {submitted && (
         <View style={[styles.resultCard, isCorrect ? styles.correctCard : styles.wrongCard]}>
           <Text style={styles.resultTitle}>{isCorrect ? '🎉 정답!' : '😢 오답'}</Text>
           {!isCorrect && resultAnswer != null && (
@@ -553,6 +611,8 @@ function makeStyles(c: Colors, fs: number) {
     correctCard: {backgroundColor: c.successSoft},
     wrongCard: {backgroundColor: c.dangerSoft},
     resultTitle: {fontSize: 20 * fs, fontWeight: '700', color: c.text, marginBottom: 10},
+    runResultBox: {borderRadius: 14, padding: 16, marginTop: 12},
+    runResultTitle: {fontSize: 15 * fs, fontWeight: '700', color: c.text, marginBottom: 8},
     answerLabel: {fontSize: 12 * fs, fontWeight: '700', color: c.text, marginBottom: 6},
     resultExplain: {fontSize: 14 * fs, color: c.text, lineHeight: 22 * fs, marginBottom: 16},
     nextBtn: {

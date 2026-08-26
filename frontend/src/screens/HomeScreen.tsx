@@ -95,7 +95,7 @@ export default function HomeScreen() {
     }
     setStarting(true);
     try {
-      const problems = await problemApi.startSet(4);
+      const problems = await problemApi.startSet(profile?.dailyGoalCount ?? 3);
       if (!problems || problems.length === 0) {
         Alert.alert('준비 중', '문제를 준비하지 못했어요. 잠시 후 다시 시도해주세요.');
         return;
@@ -138,8 +138,8 @@ export default function HomeScreen() {
     });
   }, [topics, stats]);
 
-  // 오늘의 목표(문제 갯수 기준): 하루 목표 문제 수 대비 "오늘" 푼 문제 수
-  const dailyGoal = 3;
+  // 오늘의 목표(문제 갯수 기준): 하루 목표 문제 수 대비 "오늘" 푼 문제 수 (마이페이지에서 조절, MY-018)
+  const dailyGoal = profile?.dailyGoalCount ?? 3;
   const goalSolved = Math.min(todayCount, dailyGoal);
   const goalPct = Math.round((goalSolved / dailyGoal) * 100);
 
@@ -153,11 +153,10 @@ export default function HomeScreen() {
           <Text style={styles.brand}>하루코딩</Text>
           <Text style={styles.brandTag}> {'</>'}</Text>
         </View>
-        <TouchableOpacity onPress={() => Alert.alert('알림', '새로운 알림이 없어요.')} hitSlop={8}>
-          <View>
-            <MaterialIcons name="notifications-none" size={26} color={colors.text} />
-            <View style={styles.bellDot} />
-          </View>
+        <TouchableOpacity
+          onPress={() => (isLoggedIn ? navigation.navigate('Notification') : navigation.navigate('Login'))}
+          hitSlop={8}>
+          <MaterialIcons name="notifications-none" size={26} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -314,10 +313,6 @@ function makeStyles(c: Colors, fs: number) {
     brandWrap: {flexDirection: 'row', alignItems: 'center'},
     brand: {fontSize: 20 * fs, fontWeight: '800', color: c.text},
     brandTag: {fontSize: 18 * fs, fontWeight: '800', color: c.primary},
-    bellDot: {
-      position: 'absolute', top: 1, right: 2, width: 8, height: 8,
-      borderRadius: 4, backgroundColor: c.primary, borderWidth: 1.5, borderColor: c.bg,
-    },
 
     // 히어로
     hero: {flexDirection: 'row', alignItems: 'center', marginBottom: 18},

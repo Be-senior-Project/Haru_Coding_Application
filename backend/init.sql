@@ -23,10 +23,26 @@ CREATE TABLE IF NOT EXISTS users (
     cote_prepared      BOOLEAN      NOT NULL DEFAULT FALSE,
     recommended_difficulty VARCHAR(10),
 
+    -- 유저 조절 설정 (MY-018/MY-019)
+    daily_goal_count   INT          NOT NULL DEFAULT 3
+    CHECK (daily_goal_count BETWEEN 1 AND 10),
+    difficulty_level   VARCHAR(2)
+    CHECK (difficulty_level IN ('L1','L2','L3','L4','L5')), -- NULL = 자동 추천 유지
+
     fcm_token          TEXT,
     created_at         TIMESTAMP   NOT NULL DEFAULT NOW(),
     updated_at         TIMESTAMP   NOT NULL DEFAULT NOW()
     );
+
+-- 이미 초기화된 개발 DB에도 반영되도록 가드 병행 (CREATE TABLE IF NOT EXISTS라 컬럼 추가는 안 됨)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_goal_count INT NOT NULL DEFAULT 3;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS difficulty_level VARCHAR(2);
+DO $$ BEGIN
+    ALTER TABLE users ADD CONSTRAINT users_daily_goal_count_check CHECK (daily_goal_count BETWEEN 1 AND 10);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE users ADD CONSTRAINT users_difficulty_level_check CHECK (difficulty_level IN ('L1','L2','L3','L4','L5'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ────────────────────────────────────────────
 -- 2. refresh_tokens
@@ -212,3 +228,17 @@ CREATE TABLE IF NOT EXISTS problem_scraps (
     );
 
 CREATE INDEX IF NOT EXISTS idx_scraps_user ON problem_scraps(user_id);
+
+-- ────────────────────────────────────────────
+-- 13. notifications (알림 목록·확인 — HOME-005)
+-- ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS notifications (
+                                              id         BIGSERIAL PRIMARY KEY,
+                                              user_id    BIGINT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title      VARCHAR(100) NOT NULL,
+    body       TEXT      NOT NULL,
+    is_read    BOOLEAN   NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);

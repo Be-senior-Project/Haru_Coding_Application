@@ -22,7 +22,10 @@ public enum ErrorCode {
     SET_GENERATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "오늘의 세트 생성에 실패했습니다. 잠시 후 다시 시도해주세요."),
 
     // 문제
-    PROBLEM_NOT_FOUND    (HttpStatus.NOT_FOUND,    "문제를 찾을 수 없습니다.");
+    PROBLEM_NOT_FOUND    (HttpStatus.NOT_FOUND,    "문제를 찾을 수 없습니다."),
+
+    // 알림
+    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND,   "알림을 찾을 수 없습니다.");
 
     private final HttpStatus status;
     private final String message;

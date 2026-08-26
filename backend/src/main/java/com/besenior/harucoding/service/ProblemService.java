@@ -112,6 +112,19 @@ public class ProblemService {
                 .build();
     }
 
+    // ── 코드 실행 (SOLVE-007, 채점 아님 — 이력에 남기지 않는다) ──
+    @Transactional(readOnly = true)
+    public VerifyResult run(Long problemId, Object answer) {
+        Problem problem = problemRepository.findById(problemId)
+                .orElseThrow(() -> new CustomException(ErrorCode.PROBLEM_NOT_FOUND));
+
+        ObjectNode node = buildVerifyNode(problem, answer);
+        if (node == null) {
+            return VerifyResult.fail("internal_error", "이 문제는 코드 실행을 지원하지 않아요.");
+        }
+        return codeVerifier.verify(node, problem.getLanguage());
+    }
+
     // ── 채점 ─────────────────────────────────────────────────────
     /**
      * 채점: 유저 코드를 실제로 실행해 IO 출력이 맞으면 정답.
@@ -119,24 +132,8 @@ public class ProblemService {
      */
     private boolean grade(Problem problem, Object userAnswer) {
         try {
-            String skeleton = problem.getCodeSkeleton();
-            Map<String, String> io = problem.getIoExample();
-            String signature = skeleton == null ? null : extractSignature(skeleton);
-            if (signature != null && io != null && io.get("output") != null) {
-                ObjectNode node = objectMapper.createObjectNode();
-                node.put("Type", typeName(problem.getType()));
-                node.put("Signature", signature);
-                ObjectNode ioNode = node.putObject("IO Example");
-                ioNode.put("input", io.getOrDefault("input", ""));
-                ioNode.put("output", io.get("output"));
-                node.put("Code Skeleton", skeleton);
-                // 구현: 유저가 0칸부터 쓴 코어를 {{CORE}} 위치 들여쓰기에 맞춰 재정렬
-                Object answerForVerify = userAnswer;
-                if (problem.getType() == ProblemType.IMPLEMENTATION && userAnswer instanceof String s) {
-                    answerForVerify = reindentCore(s, skeleton);
-                }
-                node.set("Answer", objectMapper.valueToTree(answerForVerify));
-
+            ObjectNode node = buildVerifyNode(problem, userAnswer);
+            if (node != null) {
                 VerifyResult r = codeVerifier.verify(node, problem.getLanguage());
                 log.info("채점[실행]: type={} lang={} ok={} reason={} detail={}",
                         problem.getType(), problem.getLanguage(), r.ok(), r.reason(), r.detail());
@@ -145,14 +142,37 @@ public class ProblemService {
                     return r.ok();
                 }
             } else {
-                log.warn("채점[폴백]: 실행 불가 (signature={} io={} output={})",
-                        signature != null, io != null, io != null ? io.get("output") : null);
+                log.warn("채점[폴백]: 실행 불가 (스켈레톤/시그니처/IO 누락)");
             }
         } catch (Exception e) {
             log.warn("채점[폴백]: 실행 채점 예외 → 문자열 비교", e);
         }
         log.info("채점[문자열비교] 사용");
         return checkAnswer(problem.getAnswer(), userAnswer);
+    }
+
+    /** CodeVerifier.verify()에 넘길 검증용 JSON 조립. 실행 불가(스켈레톤/시그니처/IO 누락)면 null. */
+    private ObjectNode buildVerifyNode(Problem problem, Object userAnswer) {
+        String skeleton = problem.getCodeSkeleton();
+        Map<String, String> io = problem.getIoExample();
+        String signature = skeleton == null ? null : extractSignature(skeleton);
+        if (signature == null || io == null || io.get("output") == null) {
+            return null;
+        }
+        ObjectNode node = objectMapper.createObjectNode();
+        node.put("Type", typeName(problem.getType()));
+        node.put("Signature", signature);
+        ObjectNode ioNode = node.putObject("IO Example");
+        ioNode.put("input", io.getOrDefault("input", ""));
+        ioNode.put("output", io.get("output"));
+        node.put("Code Skeleton", skeleton);
+        // 구현: 유저가 0칸부터 쓴 코어를 {{CORE}} 위치 들여쓰기에 맞춰 재정렬
+        Object answerForVerify = userAnswer;
+        if (problem.getType() == ProblemType.IMPLEMENTATION && userAnswer instanceof String s) {
+            answerForVerify = reindentCore(s, skeleton);
+        }
+        node.set("Answer", objectMapper.valueToTree(answerForVerify));
+        return node;
     }
 
     /**

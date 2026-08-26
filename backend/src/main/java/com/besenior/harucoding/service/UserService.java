@@ -17,6 +17,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final UserProblemRecordRepository recordRepository;
+    private final NotificationService notificationService;
 
     @Transactional(readOnly = true)
     public UserProfileResponse getProfile(Long userId) {
@@ -34,7 +35,8 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        user.updateProfile(request.getNickname(), request.getPreferredLanguage(), request.getFcmToken());
+        user.updateProfile(request.getNickname(), request.getPreferredLanguage(), request.getFcmToken(),
+                request.getDailyGoalCount(), request.getDifficultyLevel());
         userRepository.save(user);
 
         long totalSolved  = recordRepository.countTotalByUserId(userId);
@@ -54,5 +56,6 @@ public class UserService {
 
         user.updateOnboarding(codingLevel, cotePrepared);
         userRepository.save(user);
+        notificationService.notifyWelcome(userId);
     }
 }

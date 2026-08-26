@@ -18,6 +18,8 @@ public class UserProfileResponse {
     private long correctCount;
     private double accuracyRate;
     private String preferredLanguage;
+    private int dailyGoalCount;
+    private String difficultyLevel; // null이면 자동 추천
 
     public static UserProfileResponse from(User user, long totalSolved, long correctCount) {
         double accuracy = totalSolved == 0 ? 0.0
@@ -34,6 +36,8 @@ public class UserProfileResponse {
                 .correctCount(correctCount)
                 .accuracyRate(accuracy)
                 .preferredLanguage(user.getPreferredLanguage())
+                .dailyGoalCount(user.getDailyGoalCount())
+                .difficultyLevel(user.getDifficultyLevel())
                 .build();
     }
 }

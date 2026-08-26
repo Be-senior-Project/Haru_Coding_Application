@@ -16,6 +16,7 @@ import OnboardingScreen from '../screens/OnboardingScreen';
 import OnboardingResultScreen from '../screens/OnboardingResultScreen';
 import WrongNoteScreen from '../screens/WrongNoteScreen';
 import ScrapScreen from '../screens/ScrapScreen';
+import NotificationScreen from '../screens/NotificationScreen';
 import {useTheme} from '../theme/ThemeContext';
 import type {Problem} from '../types/problem';
 
@@ -43,6 +44,8 @@ export type RootStackParamList = {
   // 문제은행 탭에서 진입 (오답노트 / 스크랩)
   WrongNote: undefined;
   Scrap: undefined;
+  // 종 아이콘에서 진입 (HOME-005)
+  Notification: undefined;
   // problems: AI 생성문제 직접 전달 / problemId: 백엔드 실 문제 1개 / setId: 목 데모
   ProblemSolve: {setId?: string; problemId?: number; initialIndex?: number; problems?: Problem[]};
 };
@@ -119,6 +122,7 @@ export default function AppNavigator() {
         <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} />
         <Stack.Screen name="WrongNote" component={WrongNoteScreen} />
         <Stack.Screen name="Scrap" component={ScrapScreen} />
+        <Stack.Screen name="Notification" component={NotificationScreen} />
         <Stack.Screen name="ProblemSolve" component={ProblemSolveScreen} />
       </Stack.Navigator>
     </NavigationContainer>
