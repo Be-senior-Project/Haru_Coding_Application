@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {useTheme, tierColor, type Colors, type FontSizeKey} from '../theme/ThemeContext';
+import {useTheme, tierFromLevel, type Colors, type FontSizeKey} from '../theme/ThemeContext';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootStackParamList} from '../navigation/AppNavigator';
@@ -21,15 +21,6 @@ const FONT_SIZE_OPTIONS: {key: FontSizeKey; size: number}[] = [
 ];
 
 const SOON = (title: string) => () => Alert.alert(title, '곧 추가될 기능이에요.');
-
-// 실제 level 값에서 티어 라벨/색상 파생 (색은 theme의 TIER_COLOR 한 곳에서만 관리)
-function getTier(level: number): {label: string; color: string} {
-  if (level < 5) {return {label: '브론즈', color: tierColor('BRONZE')};}
-  if (level < 10) {return {label: '실버', color: tierColor('SILVER')};}
-  if (level < 20) {return {label: '골드', color: tierColor('GOLD')};}
-  if (level < 30) {return {label: '플래티넘', color: tierColor('PLATINUM')};}
-  return {label: '다이아', color: tierColor('DIAMOND')};
-}
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -84,35 +75,14 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const handleWithdraw = async () => {
-    try {
-      await userApi.deleteMe();
-    } catch (e: any) {
-      const status = e?.status;
-      Alert.alert(
-        '탈퇴하지 못했어요',
-        status
-          ? `서버에서 요청을 처리하지 못했어요. (오류 ${status})`
-          : '서버에 연결하지 못했어요. 네트워크 상태를 확인해 주세요.',
-      );
-      return;
-    }
-    await handleLogout(); // 토큰 정리 + 로그인 화면으로
-  };
-
+  // 백엔드에 DELETE /api/users/me 가 아직 없어 실제 탈퇴는 막아둔다.
+  // 엔드포인트가 생기면 userApi.deleteMe() 호출 + handleLogout()으로 되돌리면 됨.
   const confirmWithdraw = () => {
-    Alert.alert(
-      '탈퇴하기',
-      '탈퇴하면 학습 기록과 통계가 모두 삭제되며 복구할 수 없어요.\n정말 탈퇴할까요?',
-      [
-        {text: '취소', style: 'cancel'},
-        {text: '탈퇴하기', style: 'destructive', onPress: handleWithdraw},
-      ],
-    );
+    Alert.alert('탈퇴하기', '탈퇴 기능은 아직 준비 중이에요. 조금만 기다려 주세요.');
   };
 
   const xpProgress = profile ? profile.xp % 100 : 0;
-  const tier = profile ? getTier(profile.level) : null;
+  const tier = profile ? tierFromLevel(profile.level) : null;
 
   return (
     <ScrollView
@@ -179,13 +149,6 @@ export default function ProfileScreen() {
             <Stat icon="local-fire-department" color={colors.streak} value={`${profile.streakDays}일`} label="연속 학습" colors={colors} fs={fontScale} />
             <View style={styles.statDivider} />
             <Stat icon="stars" color={colors.warning} value={profile.xp.toLocaleString()} label="획득 XP" colors={colors} fs={fontScale} />
-          </View>
-
-          {/* 내 학습 */}
-          <Text style={styles.sectionTitle}>내 학습</Text>
-          <View style={styles.menuCard}>
-            <MenuRow icon="rule" iconColor={colors.primary} label="오답 노트" onPress={SOON('오답 노트')} colors={colors} fs={fontScale} />
-            <MenuRow icon="bookmark-border" iconColor={colors.primary} label="스크랩한 문제" onPress={SOON('스크랩한 문제')} last colors={colors} fs={fontScale} />
           </View>
         </>
       ) : (

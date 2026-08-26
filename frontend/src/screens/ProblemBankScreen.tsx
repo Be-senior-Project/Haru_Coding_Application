@@ -1,11 +1,13 @@
-import React, {useMemo, useState} from 'react';
-import {View, Text, StyleSheet, ScrollView, TouchableOpacity} from 'react-native';
+import React, {useEffect, useMemo, useState} from 'react';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../navigation/AppNavigator';
 import {problemSets} from '../data/mockProblems';
+import type {Problem} from '../types/problem';
 import {TYPE_LABEL, difficultyLabel, difficultyColor, difficultySoft} from '../types/problem';
+import {problemApi} from '../api/problemApi';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
@@ -19,57 +21,128 @@ const TOPIC_KO: Record<string, string> = {
 };
 const ko = (s?: string | null): string => (s ? TOPIC_KO[s] ?? s : '');
 
-// 더미 데이터: 모든 세트 문제 flat + 데모 세트 ID
-const allProblems = problemSets.flatMap(set =>
+// 백엔드가 응답하지 않을 때 쓰는 폴백: 목 세트 문제 flat + 데모 세트 ID
+type BankProblem = Problem & {demoSetId?: string};
+const mockBank: BankProblem[] = problemSets.flatMap(set =>
   set.problems.map(p => ({...p, demoSetId: set.id})),
 );
 
 export default function ProblemBankScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [selectedTopic, setSelectedTopic] = useState('전체');
+  const [bank, setBank] = useState<BankProblem[]>([]);
+  const [loading, setLoading] = useState(true);
+  // null = 실제 문제 목록. 'error' = 서버 연결 실패, 'empty' = 서버에 아직 문제가 없음 (둘 다 예시 문제로 폴백)
+  const [mockReason, setMockReason] = useState<'error' | 'empty' | null>(null);
   const insets = useSafeAreaInsets();
   const {colors, fontScale} = useTheme();
   const styles = useMemo(() => makeStyles(colors, fontScale), [colors, fontScale]);
 
+  useEffect(() => {
+    loadBank();
+  }, []);
+
+  const loadBank = async () => {
+    setLoading(true);
+    try {
+      const list = await problemApi.list({limit: 100});
+      if (list && list.length > 0) {
+        setBank(list);
+        setMockReason(null);
+      } else {
+        setBank(mockBank);
+        setMockReason('empty');
+      }
+    } catch (e) {
+      console.error('문제 목록 로드 실패', e);
+      setBank(mockBank);
+      setMockReason('error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const topics = useMemo(
-    () => ['전체', ...Array.from(new Set(allProblems.map(p => ko(p.category))))],
-    [],
+    () => ['전체', ...Array.from(new Set(bank.map(p => ko(p.category))))],
+    [bank],
   );
 
   const filtered =
     selectedTopic === '전체'
-      ? allProblems
-      : allProblems.filter(p => ko(p.category) === selectedTopic);
+      ? bank
+      : bank.filter(p => ko(p.category) === selectedTopic);
+
+  const subtitle =
+    mockReason === 'error'
+      ? '서버에 연결하지 못해 예시 문제를 보여드리고 있어요'
+      : mockReason === 'empty'
+      ? '서버에 아직 등록된 문제가 없어 예시 문제를 보여드리고 있어요'
+      : `${filtered.length}개의 문제가 기다리고 있어요`;
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, {paddingTop: insets.top + 20}]}>
       <Text style={styles.title}>문제 은행</Text>
-      <Text style={styles.subtitle}>{filtered.length}개의 문제가 기다리고 있어요</Text>
+      <Text style={styles.subtitle}>{subtitle}</Text>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-        {topics.map(t => (
-          <TouchableOpacity
-            key={t}
-            style={[styles.filterBtn, selectedTopic === t && styles.filterActive]}
-            onPress={() => setSelectedTopic(t)}>
-            <Text style={[styles.filterText, selectedTopic === t && styles.filterTextActive]}>{t}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {filtered.map(p => (
+      {/* 내 기록 진입 — 오답 노트 / 스크랩 */}
+      <View style={styles.shortcutRow}>
         <TouchableOpacity
-          key={p.id}
-          style={styles.problemCard}
+          style={styles.shortcut}
           activeOpacity={0.85}
-          onPress={() => navigation.navigate('ProblemSolve', {setId: p.demoSetId})}>
-          <View style={styles.cardRow}>
-            <View style={styles.iconBox}>
-              <MaterialIcons name="code" size={22} color={colors.primary} />
-            </View>
-            <View style={styles.cardBody}>
+          onPress={() => navigation.navigate('WrongNote')}>
+          <View style={[styles.shortcutIcon, {backgroundColor: colors.dangerSoft}]}>
+            <MaterialIcons name="rule" size={20} color={colors.danger} />
+          </View>
+          <View style={styles.shortcutText}>
+            <Text style={styles.shortcutLabel}>오답 노트</Text>
+            <Text style={styles.shortcutSub}>틀린 문제 다시 풀기</Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={20} color={colors.subText} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.shortcut}
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate('Scrap')}>
+          <View style={[styles.shortcutIcon, {backgroundColor: colors.primarySoft}]}>
+            <MaterialIcons name="bookmark" size={20} color={colors.primary} />
+          </View>
+          <View style={styles.shortcutText}>
+            <Text style={styles.shortcutLabel}>스크랩</Text>
+            <Text style={styles.shortcutSub}>저장해둔 문제</Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={20} color={colors.subText} />
+        </TouchableOpacity>
+      </View>
+
+      {loading ? (
+        <ActivityIndicator color={colors.primary} style={styles.loadingIndicator} />
+      ) : (
+        <>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+            {topics.map(t => (
+              <TouchableOpacity
+                key={t}
+                style={[styles.filterBtn, selectedTopic === t && styles.filterActive]}
+                onPress={() => setSelectedTopic(t)}>
+                <Text style={[styles.filterText, selectedTopic === t && styles.filterTextActive]}>{t}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {filtered.map(p => (
+            <TouchableOpacity
+              key={p.id}
+              style={styles.problemCard}
+              activeOpacity={0.85}
+              onPress={() =>
+                navigation.navigate(
+                  'ProblemSolve',
+                  mockReason ? {setId: p.demoSetId} : {problemId: p.id},
+                )
+              }>
               <View style={styles.cardTop}>
                 <View style={styles.badges}>
                   <View style={[styles.badge, {backgroundColor: difficultySoft(p.difficulty, colors)}]}>
@@ -87,13 +160,13 @@ export default function ProblemBankScreen() {
               </View>
               <Text style={styles.problemTitle}>{p.title}</Text>
               <Text style={styles.problemQuestion} numberOfLines={2}>{p.description}</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-      ))}
+            </TouchableOpacity>
+          ))}
 
-      {filtered.length === 0 && (
-        <Text style={styles.empty}>해당 주제의 문제가 아직 없어요</Text>
+          {filtered.length === 0 && (
+            <Text style={styles.empty}>해당 주제의 문제가 아직 없어요</Text>
+          )}
+        </>
       )}
     </ScrollView>
   );
@@ -106,6 +179,27 @@ function makeStyles(c: Colors, fs: number) {
 
     title: {fontSize: 22 * fs, fontWeight: '800', color: c.text, marginBottom: 2},
     subtitle: {fontSize: 13 * fs, color: c.subText, marginBottom: 16},
+
+    // 오답 노트 · 스크랩 진입
+    shortcutRow: {gap: 10, marginBottom: 20},
+    shortcut: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: c.card,
+      borderRadius: 16,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      shadowColor: '#000',
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      shadowOffset: {width: 0, height: 3},
+      elevation: 2,
+    },
+    shortcutIcon: {width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center'},
+    shortcutText: {flex: 1},
+    shortcutLabel: {fontSize: 15 * fs, fontWeight: '800', color: c.text},
+    shortcutSub: {fontSize: 12 * fs, color: c.subText, marginTop: 2},
 
     filterScroll: {marginBottom: 16},
     filterBtn: {
@@ -131,17 +225,6 @@ function makeStyles(c: Colors, fs: number) {
       shadowOffset: {width: 0, height: 4},
       elevation: 2,
     },
-    cardRow: {flexDirection: 'row'},
-    iconBox: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
-      backgroundColor: c.primarySoft,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: 14,
-    },
-    cardBody: {flex: 1},
     cardTop: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6},
     badges: {flexDirection: 'row', gap: 6},
     badge: {paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6},
@@ -157,6 +240,7 @@ function makeStyles(c: Colors, fs: number) {
     problemTitle: {fontSize: 15 * fs, fontWeight: '800', color: c.text, marginBottom: 4},
     problemQuestion: {fontSize: 13 * fs, color: c.subText, lineHeight: 20 * fs},
 
+    loadingIndicator: {marginTop: 40},
     empty: {textAlign: 'center', color: c.subText, marginTop: 40, fontSize: 14 * fs},
   });
 }

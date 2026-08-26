@@ -1,5 +1,5 @@
 import React, {useCallback, useMemo, useState} from 'react';
-import {View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Alert} from 'react-native';
+import {View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import {useFocusEffect} from '@react-navigation/native';
@@ -9,12 +9,6 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 const WEEK_DAYS = ['월', '화', '수', '목', '금', '토', '일'];
 const TABS = ['전체', '주간', '월간', '연간'];
-
-// solvedAt(ISO) → "M/D HH:mm"
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
 
 const md = (d: Date) => `${d.getMonth() + 1}.${d.getDate()}`;
 
@@ -213,36 +207,6 @@ export default function StatsScreen() {
         </View>
       )}
 
-      {/* 최근 푼 문제 (실제 recentRecords) */}
-      {stats && stats.recentRecords.length > 0 && (
-        <>
-          <View style={styles.recentHead}>
-            <Text style={styles.sectionTitle}>최근 푼 문제</Text>
-            <TouchableOpacity onPress={() => Alert.alert('더보기', '곧 추가될 기능이에요.')} hitSlop={6}>
-              <Text style={styles.moreText}>더보기</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.card}>
-            {stats.recentRecords.map((r, i) => (
-              <View key={i} style={[styles.recentItem, i > 0 && styles.topicDivider]}>
-                <MaterialIcons
-                  name={r.isCorrect ? 'check-circle' : 'cancel'}
-                  size={20}
-                  color={r.isCorrect ? colors.success : colors.danger}
-                />
-                <View style={styles.recentInfo}>
-                  <Text style={styles.recentTitle} numberOfLines={1}>{r.problemTitle}</Text>
-                  <Text style={styles.recentMeta}>{r.topic} · {formatDate(r.solvedAt)}</Text>
-                </View>
-                <Text style={[styles.recentResult, {color: r.isCorrect ? colors.success : colors.danger}]}>
-                  {r.isCorrect ? '정답' : '오답'}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </>
-      )}
-
       <View style={styles.bottomSpacer} />
     </ScrollView>
   );
@@ -345,15 +309,6 @@ function makeStyles(c: Colors, fs: number) {
     },
     tipText: {flex: 1, fontSize: 12 * fs, color: c.subText, lineHeight: 18 * fs},
     tipStrong: {fontWeight: '800', color: c.text},
-
-    // 최근
-    recentHead: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4},
-    moreText: {fontSize: 13 * fs, color: c.subText, marginBottom: 12},
-    recentItem: {flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12},
-    recentInfo: {flex: 1},
-    recentTitle: {fontSize: 14 * fs, fontWeight: '700', color: c.text},
-    recentMeta: {fontSize: 12 * fs, color: c.subText, marginTop: 2},
-    recentResult: {fontSize: 13 * fs, fontWeight: '800'},
 
     emptyCard: {backgroundColor: c.card, borderRadius: 16, padding: 24, alignItems: 'center', marginBottom: 16},
     emptyText: {fontSize: 14 * fs, color: c.subText, textAlign: 'center'},
