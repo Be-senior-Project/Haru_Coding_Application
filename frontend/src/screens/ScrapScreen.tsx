@@ -2,6 +2,7 @@ import React, {useCallback, useState} from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -25,15 +26,32 @@ export default function ScrapScreen() {
   const [scraps, setScraps] = useState<Scrap[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  // 문제은행 탭은 비로그인도 들어올 수 있는데 이 화면은 인증이 필요하다.
+  // 구분하지 않으면 "불러오지 못했어요"만 떠서 앱이 고장난 것처럼 보인다.
+  const [needLogin, setNeedLogin] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(false);
+    setNeedLogin(false);
+
+    const token = await AsyncStorage.getItem('accessToken');
+    if (!token) {
+      setNeedLogin(true);
+      setLoading(false);
+      return;
+    }
+
     try {
       setScraps(await scrapApi.list());
-    } catch (e) {
-      console.error('스크랩 목록 로드 실패', e);
-      setError(true);
+    } catch (e: any) {
+      // 토큰이 만료돼 갱신까지 실패한 경우도 로그인 유도로 보낸다.
+      if (e?.status === 401 || e?.status === 403) {
+        setNeedLogin(true);
+      } else {
+        console.error('스크랩 목록 로드 실패', e);
+        setError(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -64,6 +82,18 @@ export default function ScrapScreen() {
     return (
       <View style={[styles.center, {paddingTop: insets.top}]}>
         <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (needLogin) {
+    return (
+      <View style={[styles.center, {paddingTop: insets.top}]}>
+        <MaterialIcons name="lock" size={30} color={colors.subText} />
+        <Text style={styles.emptyText}>로그인하면 스크랩한 문제를 볼 수 있어요</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.loginBtn}>
+          <Text style={styles.loginBtnText}>로그인하기</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -137,4 +167,9 @@ const makeStyles = (colors: ReturnType<typeof useTheme>['colors']) =>
     emptyText: {fontSize: 14, color: colors.subText, textAlign: 'center', marginTop: 40},
     retryBtn: {marginTop: 12, paddingHorizontal: 16, paddingVertical: 8},
     retryText: {color: colors.primary, fontWeight: '600'},
+    loginBtn: {
+      marginTop: 16, paddingHorizontal: 24, paddingVertical: 10,
+      backgroundColor: colors.primary, borderRadius: 10,
+    },
+    loginBtnText: {color: '#FFF', fontWeight: '700', fontSize: 14},
   });
