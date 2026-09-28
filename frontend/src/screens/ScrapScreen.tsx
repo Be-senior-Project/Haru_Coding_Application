@@ -127,19 +127,27 @@ export default function ScrapScreen() {
           <Text style={styles.emptyText}>아직 스크랩한 문제가 없어요.</Text>
         }
         renderItem={({item}) => (
-          <TouchableOpacity
-            style={styles.row}
-            onPress={() => navigation.navigate('ProblemSolve', {problemId: item.problemId})}>
-            <View style={styles.rowBody}>
+          // 버튼 안에 버튼을 넣으면 안드로이드에서 터치가 겹쳐, 해제를 눌렀는데
+          // 문제 풀이 화면으로 넘어가곤 했다. 두 버튼을 형제로 나란히 둔다.
+          <View style={styles.row}>
+            <TouchableOpacity
+              style={styles.rowBody}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('ProblemSolve', {problemId: item.problemId})}>
               <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
               <Text style={styles.rowMeta}>
                 {difficultyLabel(item.difficulty)} · {TYPE_LABEL[item.type]} · {item.language}
               </Text>
-            </View>
-            <TouchableOpacity onPress={() => handleUnscrap(item.problemId)} hitSlop={8}>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.unscrapBtn}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.title} 스크랩 해제`}
+              onPress={() => handleUnscrap(item.problemId)}>
               <MaterialIcons name="bookmark" size={22} color={colors.primary} />
             </TouchableOpacity>
-          </TouchableOpacity>
+          </View>
         )}
       />
     </View>
@@ -161,7 +169,9 @@ const makeStyles = (colors: ReturnType<typeof useTheme>['colors']) =>
       backgroundColor: colors.card, borderRadius: 12, padding: 14,
       borderWidth: 1, borderColor: colors.border,
     },
-    rowBody: {flex: 1},
+    rowBody: {flex: 1, paddingVertical: 2},
+    // 아이콘만으로는 터치 영역이 좁아 오조작이 난다. 패딩으로 44dp 가까이 확보한다.
+    unscrapBtn: {padding: 10, marginRight: -4},
     rowTitle: {fontSize: 15, fontWeight: '600', color: colors.text},
     rowMeta: {fontSize: 12, color: colors.subText, marginTop: 6},
     emptyText: {fontSize: 14, color: colors.subText, textAlign: 'center', marginTop: 40},
