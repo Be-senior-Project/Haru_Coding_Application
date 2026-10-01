@@ -18,6 +18,19 @@ const LANGUAGES: {label: string; value: string}[] = [
   {label: 'C', value: 'C'},
 ];
 
+const GOAL_MIN = 1;
+const GOAL_MAX = 10;
+
+// value는 백엔드 허용값(users_difficulty_level_check: L1~L5), 'AUTO'는 자동 추천으로 되돌리는 프론트 전용 선택지
+const DIFFICULTY_LEVELS: {label: string; value: string}[] = [
+  {label: '자동', value: 'AUTO'},
+  {label: 'L1', value: 'L1'},
+  {label: 'L2', value: 'L2'},
+  {label: 'L3', value: 'L3'},
+  {label: 'L4', value: 'L4'},
+  {label: 'L5', value: 'L5'},
+];
+
 export default function ProfileEditScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
@@ -26,6 +39,8 @@ export default function ProfileEditScreen() {
 
   const [nickname, setNickname] = useState('');
   const [language, setLanguage] = useState<string | null>(null);
+  const [dailyGoal, setDailyGoal] = useState(3);
+  const [difficulty, setDifficulty] = useState('AUTO');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -36,6 +51,8 @@ export default function ProfileEditScreen() {
         if (!alive) {return;}
         setNickname(p.nickname ?? '');
         setLanguage(p.preferredLanguage ?? null);
+        setDailyGoal(p.dailyGoalCount ?? 3);
+        setDifficulty(p.difficultyLevel ?? 'AUTO');
       })
       .catch(() => Alert.alert('오류', '프로필을 불러오지 못했어요.'))
       .finally(() => {
@@ -56,6 +73,8 @@ export default function ProfileEditScreen() {
       await userApi.updateMe({
         nickname: nickname.trim(),
         preferredLanguage: language ?? undefined,
+        dailyGoalCount: dailyGoal,
+        difficultyLevel: difficulty,
       });
       Alert.alert('저장 완료', '프로필이 수정됐어요.', [
         {text: '확인', onPress: () => navigation.goBack()},
@@ -124,6 +143,43 @@ export default function ProfileEditScreen() {
           })}
         </View>
 
+        {/* 하루 목표 문제 수 */}
+        <Text style={styles.label}>하루 목표 문제 수</Text>
+        <Text style={styles.labelSub}>홈 화면의 오늘 목표와 세트 크기에 반영돼요</Text>
+        <View style={styles.stepperRow}>
+          <TouchableOpacity
+            style={[styles.stepperBtn, dailyGoal <= GOAL_MIN && styles.btnDisabled]}
+            onPress={() => setDailyGoal(g => Math.max(GOAL_MIN, g - 1))}
+            disabled={dailyGoal <= GOAL_MIN}>
+            <MaterialIcons name="remove" size={20} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.stepperValue}>{dailyGoal}문제</Text>
+          <TouchableOpacity
+            style={[styles.stepperBtn, dailyGoal >= GOAL_MAX && styles.btnDisabled]}
+            onPress={() => setDailyGoal(g => Math.min(GOAL_MAX, g + 1))}
+            disabled={dailyGoal >= GOAL_MAX}>
+            <MaterialIcons name="add" size={20} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        {/* 난이도 조절 */}
+        <Text style={styles.label}>난이도</Text>
+        <Text style={styles.labelSub}>L1(입문)~L5(고급). 자동은 풀이 이력 기반 추천을 따라요</Text>
+        <View style={styles.langWrap}>
+          {DIFFICULTY_LEVELS.map(d => {
+            const active = difficulty === d.value;
+            return (
+              <TouchableOpacity
+                key={d.value}
+                style={[styles.langChip, active && styles.langChipActive]}
+                onPress={() => setDifficulty(d.value)}
+                activeOpacity={0.8}>
+                <Text style={[styles.langChipText, active && styles.langChipTextActive]}>{d.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         {/* 저장 */}
         <TouchableOpacity
           style={[styles.saveBtn, saving && styles.btnDisabled]}
@@ -156,6 +212,13 @@ function makeStyles(c: Colors, fs: number) {
     },
     inputIcon: {marginRight: 10},
     input: {flex: 1, paddingVertical: 14, fontSize: 15 * fs, color: c.text},
+
+    stepperRow: {flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 28},
+    stepperBtn: {
+      width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+    },
+    stepperValue: {fontSize: 16 * fs, fontWeight: '800', color: c.text, minWidth: 56, textAlign: 'center'},
 
     langWrap: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 28},
     langChip: {

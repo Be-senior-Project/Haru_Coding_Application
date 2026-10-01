@@ -93,7 +93,7 @@ export default function ProfileScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>마이페이지</Text>
         <View style={styles.headerIcons}>
-          <TouchableOpacity onPress={() => Alert.alert('알림', '새로운 알림이 없어요.')} hitSlop={8}>
+          <TouchableOpacity onPress={() => navigation.navigate('Notification')} hitSlop={8}>
             <MaterialIcons name="notifications-none" size={22} color={colors.text} />
           </TouchableOpacity>
         </View>
@@ -166,7 +166,7 @@ export default function ProfileScreen() {
       <Text style={styles.sectionTitle}>내 정보</Text>
       <View style={styles.menuCard}>
         <MenuRow icon="person-outline" iconColor={colors.subText} label="프로필 관리" onPress={() => navigation.navigate('ProfileEdit')} colors={colors} fs={fontScale} />
-        <MenuRow icon="notifications-none" iconColor={colors.subText} label="알림 설정" onPress={SOON('알림 설정')} colors={colors} fs={fontScale} />
+        <MenuRow icon="notifications-none" iconColor={colors.subText} label="알림" onPress={() => navigation.navigate('Notification')} colors={colors} fs={fontScale} />
         <MenuRow
           icon="dark-mode" iconColor={colors.subText} label="다크 모드" colors={colors} fs={fontScale}
           right={<Switch value={isDark} onValueChange={toggleTheme} trackColor={{true: colors.primary}} />}

@@ -16,19 +16,36 @@ import OnboardingScreen from '../screens/OnboardingScreen';
 import OnboardingResultScreen from '../screens/OnboardingResultScreen';
 import WrongNoteScreen from '../screens/WrongNoteScreen';
 import ScrapScreen from '../screens/ScrapScreen';
+import NotificationScreen from '../screens/NotificationScreen';
 import {useTheme} from '../theme/ThemeContext';
 import type {Problem} from '../types/problem';
+
+/**
+ * 가입 입력값은 계정이 만들어지기 전까지 화면을 따라 이동한다.
+ * users에 행이 생기는 시점은 OnboardingResult의 "가입하기" 버튼 하나뿐이라,
+ * 중간에 이탈하면 서버에 아무 흔적도 남지 않는다.
+ */
+export type PendingSignup = {email: string; password: string; nickname: string};
 
 export type RootStackParamList = {
   Login: undefined;
   Signup: undefined;
-  Onboarding: undefined;
-  OnboardingResult: {difficulty: string; reason: string; focusPoint: string};
+  Onboarding: {signup: PendingSignup};
+  OnboardingResult: {
+    signup: PendingSignup;
+    codingLevel: string;
+    cotePrepared: boolean;
+    difficulty: string;
+    reason: string;
+    focusPoint: string;
+  };
   Main: undefined;
   ProfileEdit: undefined;
   // 문제은행 탭에서 진입 (오답노트 / 스크랩)
   WrongNote: undefined;
   Scrap: undefined;
+  // 종 아이콘에서 진입 (HOME-005)
+  Notification: undefined;
   // problems: AI 생성문제 직접 전달 / problemId: 백엔드 실 문제 1개 / setId: 목 데모
   ProblemSolve: {setId?: string; problemId?: number; initialIndex?: number; problems?: Problem[]};
 };
@@ -105,6 +122,7 @@ export default function AppNavigator() {
         <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} />
         <Stack.Screen name="WrongNote" component={WrongNoteScreen} />
         <Stack.Screen name="Scrap" component={ScrapScreen} />
+        <Stack.Screen name="Notification" component={NotificationScreen} />
         <Stack.Screen name="ProblemSolve" component={ProblemSolveScreen} />
       </Stack.Navigator>
     </NavigationContainer>

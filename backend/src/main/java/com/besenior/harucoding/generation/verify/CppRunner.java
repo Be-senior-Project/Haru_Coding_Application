@@ -56,9 +56,9 @@ public class CppRunner implements Runner {
             String actual = exec.stdout().strip();
             String expected = expectedOutput.strip();
             if (!actual.equals(expected)) {
-                return VerifyResult.fail("output_mismatch", "expected: " + expected + ", actual: " + actual);
+                return VerifyResult.fail("output_mismatch", "expected: " + expected + ", actual: " + actual, actual);
             }
-            return VerifyResult.pass();
+            return VerifyResult.pass(actual);
         } catch (Exception e) {
             return VerifyResult.fail("internal_error", "실행 오류: " + e.getMessage());
         } finally {

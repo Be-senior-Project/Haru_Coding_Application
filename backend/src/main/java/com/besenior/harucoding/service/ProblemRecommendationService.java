@@ -84,8 +84,12 @@ public class ProblemRecommendationService {
         // 유형별 정답률 (구현/디버깅/빈칸)
         Map<String, int[]> typeStats = buildTypeStats(records); // [attempts, correct]
 
-        String lang = user.getPreferredLanguage();   // null 이면 전체 언어
-        int level = estimateLevel(user, records);
+        // users.preferred_language(JAVA/PYTHON/C/JS) → problems.language(Python/Java/C++)로 정규화.
+        // 정규화 없이 그대로 비교하면 대소문자·표기가 달라 필터가 항상 무효가 된다.
+        String lang = mapLanguage(user.getPreferredLanguage());   // null 이면 전체 언어
+        // 유저가 마이페이지에서 난이도(L1~L5)를 직접 골랐으면 그 값을 우선 사용, 아니면 자동 추정.
+        Integer manualLevel = mapDifficultyLevel(user.getDifficultyLevel());
+        int level = manualLevel != null ? manualLevel : estimateLevel(user, records);
         int lo = Math.max(0, level - 1);
         int hi = Math.min(2, level + 1);
 
@@ -242,6 +246,28 @@ public class ProblemRecommendationService {
                             .build();
                 })
                 .collect(Collectors.toList());
+    }
+
+    // L1~L5(프로그래머스 기준) → 생성/추천 난이도(0/1/2). 0레벨:L1, 1레벨:L2~L3, 2레벨:L4~L5.
+    private Integer mapDifficultyLevel(String difficultyLevel) {
+        if (difficultyLevel == null) return null;
+        return switch (difficultyLevel) {
+            case "L1" -> 0;
+            case "L2", "L3" -> 1;
+            case "L4", "L5" -> 2;
+            default -> null;
+        };
+    }
+
+    // 선호 언어(JAVA/PYTHON/C/JS) → 문제 언어(Python/Java/C++). ProblemSetSessionService와 동일 매핑.
+    private String mapLanguage(String preferred) {
+        if (preferred == null) return null;
+        return switch (preferred) {
+            case "JAVA" -> "Java";
+            case "PYTHON" -> "Python";
+            case "C" -> "C++";
+            default -> null; // JS 등 매칭되는 문제 언어가 없으면 언어 필터 없이 추천
+        };
     }
 
     // ── 역량 요약 ────────────────────────────────────────────────────

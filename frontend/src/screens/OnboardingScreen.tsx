@@ -8,15 +8,14 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import {useNavigation} from '@react-navigation/native';
+import {useNavigation, useRoute} from '@react-navigation/native';
+import type {RouteProp} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import type {RootStackParamList} from '../navigation/AppNavigator';
 import {api} from '../api/apiFetch';
-import {userApi} from '../api/userApi';
 
 type CodingLevel = 'NONE' | 'SOME' | 'LOTS';
 
@@ -39,6 +38,8 @@ interface OnboardingResult {
 
 export default function OnboardingScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'Onboarding'>>();
+  const {signup} = route.params;
   const {colors, fontScale} = useTheme();
   const styles = useMemo(() => makeStyles(colors, fontScale), [colors, fontScale]);
   const insets = useSafeAreaInsets();
@@ -53,23 +54,17 @@ export default function OnboardingScreen() {
     if (!canSubmit) return;
     setLoading(true);
     try {
-      const userProfile = await userApi.getMe();
-      const body = {
-        userId: userProfile.id,
-        level: userProfile.level,
-        codingLevel,
-        cotePrepared,
-        preferredLanguage: userProfile.preferredLanguage ?? 'python',
-        totalSolved: 0,
-        correctCount: 0,
-        categoryStats: [],
-      };
-      await Promise.all([
-        AsyncStorage.setItem('codingLevel', codingLevel!),
-        AsyncStorage.setItem('cotePrepared', String(cotePrepared)),
-      ]);
-      const result = await api.post<OnboardingResult>('/api/recommend/onboarding', body);
+      // 아직 계정이 없으므로 userId 없이 계산만 요청한다(이 엔드포인트는 인증 불필요).
+      // 답변을 users에 기록하는 일은 다음 화면의 "가입하기"에서 한다.
+      const result = await api.post<OnboardingResult>(
+        '/api/recommend/onboarding',
+        {codingLevel, cotePrepared},
+        false,
+      );
       navigation.replace('OnboardingResult', {
+        signup,
+        codingLevel: codingLevel!,
+        cotePrepared: cotePrepared!,
         difficulty: result.difficulty,
         reason: result.reason,
         focusPoint: result.focusPoint,

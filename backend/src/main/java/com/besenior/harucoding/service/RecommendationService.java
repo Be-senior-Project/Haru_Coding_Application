@@ -1,9 +1,7 @@
 package com.besenior.harucoding.service;
 
-import com.besenior.harucoding.repository.UserRepository;
 import com.besenior.harucoding.DTO.RecommendationFilterDto;
 import com.besenior.harucoding.DTO.UserProfileDto;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -15,13 +13,13 @@ import java.util.List;
  * - 조합이 6가지(코딩 경험 3 × 코테 준비 2)뿐이라 문구를 미리 정해두고 GPT 호출은 하지 않는다.
  *   매번 같은 6개 중 하나가 나올 내용이라 API 비용·응답 지연만 늘고 얻는 게 없었다.
  * - 기존 유저 개인화 추천은 ProblemRecommendationService(/api/recommendations)로 대체됨
+ *
+ * 저장은 하지 않는다(계산 전용). 가입 전에도 결과를 보여줘야 해서 userId가 없을 수 있고,
+ * 답변을 users에 기록하는 일은 가입이 확정된 뒤 UserService가 맡는다.
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class RecommendationService {
-
-    private final UserRepository userRepository;
 
     /** 온보딩 결과 화면에 노출할 고정 문구(추천 이유 + 학습 포인트). */
     private record OnboardingMessage(String reason, String focusPoint) {}
@@ -32,7 +30,7 @@ public class RecommendationService {
         String difficulty = scoreToDifficulty(score);
         OnboardingMessage message = onboardingMessage(profile.getCodingLevel(), profile.isCotePrepared());
 
-        RecommendationFilterDto result = RecommendationFilterDto.builder()
+        return RecommendationFilterDto.builder()
                 .difficulty(difficulty)
                 .topicIds(List.of(1))
                 .type("객관식")
@@ -43,18 +41,18 @@ public class RecommendationService {
                 .focusPoint(message.focusPoint())
                 .method("rule_based")
                 .build();
+    }
 
-        // users 테이블에 온보딩 결과 저장
-        userRepository.findById(profile.getUserId()).ifPresent(user -> {
-            user.updateOnboarding(
-                    profile.getCodingLevel(),
-                    profile.isCotePrepared(),
-                    result.getDifficulty()
-            );
-            userRepository.save(user);
-        });
-
-        return result;
+    /**
+     * 온보딩 답변만으로 문제 난이도(0/1/2)를 계산한다.
+     * recommended_difficulty 컬럼에 저장해두고 읽던 것을 대신하는 단일 규칙 —
+     * 원본 답변(coding_level, cote_prepared)이 있으면 언제든 다시 구할 수 있어 저장하지 않는다.
+     */
+    public int onboardingBaseLevel(String codingLevel, boolean cotePrepared) {
+        int score = calcScore(codingLevel, cotePrepared);
+        if (score < 25) return 0;   // 입문
+        if (score < 50) return 1;   // 초급
+        return 2;                   // 중급·고급
     }
 
     // ── 6가지 조합별 고정 문구 ─────────────────────────────────────
@@ -87,12 +85,16 @@ public class RecommendationService {
 
     // ── 점수 계산 ──────────────────────────────────────────────────
     private int calcOnboardingScore(UserProfileDto profile) {
-        int score = switch (profile.getCodingLevel() != null ? profile.getCodingLevel() : "NONE") {
+        return calcScore(profile.getCodingLevel(), profile.isCotePrepared());
+    }
+
+    private int calcScore(String codingLevel, boolean cotePrepared) {
+        int score = switch (codingLevel != null ? codingLevel : "NONE") {
             case "LOTS" -> 60;
             case "SOME" -> 30;
             default     -> 0;
         };
-        if (profile.isCotePrepared()) score += 40;
+        if (cotePrepared) score += 40;
         return score;
     }
 

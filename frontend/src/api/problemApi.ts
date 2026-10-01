@@ -14,6 +14,13 @@ export interface AttemptResult {
   currentStreak: number;
 }
 
+export interface CodeRunResult {
+  ok: boolean;
+  actualOutput: string | null;
+  reason: string | null; // compile_error | runtime_error | timeout | output_mismatch | internal_error
+  detail: string | null;
+}
+
 export interface ProblemListParams {
   category?: string;
   difficulty?: number;
@@ -50,6 +57,10 @@ export const problemApi = {
   // 풀이 제출 → 채점 + 기록 (인증 필요)
   attempt: (id: number, answer: unknown, timeSpentSec?: number) =>
     api.post<AttemptResult>(`/api/problems/${id}/attempt`, {answer, timeSpentSec}),
+
+  // 코드 실행 (SOLVE-007) — 예시 입력으로 즉시 실행, 이력 미저장 (인증 필요)
+  run: (id: number, answer: unknown) =>
+    api.post<CodeRunResult>(`/api/problems/${id}/run`, {answer}),
 
   // 세트 시작 (인증 필요) → 안 푼 DB 문제 우선, 없으면 즉석 생성. 문제 배열(정답 숨김) 반환
   startSet: (count = 3) =>

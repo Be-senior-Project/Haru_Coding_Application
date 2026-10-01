@@ -5,8 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -16,8 +14,6 @@ import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import type {RootStackParamList} from '../navigation/AppNavigator';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import {signup, AuthApiError} from '../api/authApi';
 import {
   validateEmail,
   validateNickname,
@@ -43,15 +39,12 @@ export default function SignupScreen() {
   const [showPw, setShowPw] = useState(false);
   const [showPwConfirm, setShowPwConfirm] = useState(false);
   const [agreed, setAgreed] = useState(false);
-  const [loading, setLoading] = useState(false);
   // 입력 도중부터 빨간 글씨가 뜨면 거슬리므로, 칸을 한 번 벗어났거나 가입을 눌렀을 때만 에러를 보인다.
   const [touched, setTouched] = useState<Record<Field, boolean>>({
     name: false, email: false, password: false, confirm: false,
   });
   const [submitted, setSubmitted] = useState(false);
   const [pwFocused, setPwFocused] = useState(false);
-  // 중복 이메일처럼 서버만 알 수 있는 에러. 이메일을 고치면 지운다.
-  const [emailServerError, setEmailServerError] = useState<string | null>(null);
 
   const nameRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
@@ -60,7 +53,7 @@ export default function SignupScreen() {
 
   const errors: Record<Field, string | null> = {
     name: validateNickname(name),
-    email: emailServerError ?? validateEmail(email),
+    email: validateEmail(email),
     password: validatePassword(password),
     confirm: !passwordConfirm
       ? '비밀번호를 한 번 더 입력해주세요.'
@@ -81,7 +74,7 @@ export default function SignupScreen() {
 
   const blur = (f: Field) => setTouched(t => ({...t, [f]: true}));
 
-  const handleSignup = async () => {
+  const handleNext = () => {
     setSubmitted(true);
     const firstInvalid = (['name', 'email', 'password', 'confirm'] as Field[]).find(f => errors[f]);
     if (firstInvalid) {
@@ -92,29 +85,12 @@ export default function SignupScreen() {
     if (!agreed) {
       return;
     }
-    setLoading(true);
-    try {
-      const {accessToken, refreshToken} =
-        await signup(email.trim(), password, name.trim(), passwordConfirm);
-      await AsyncStorage.multiSet([
-        ['accessToken', accessToken],
-        ['refreshToken', refreshToken],
-      ]);
-      // replace는 Signup만 걷어내고 그 아래(Login)를 남겨서, 뒤로가기로 로그인 화면에 도달할 수 있었다.
-      // 거기서 "둘러보기"를 누르면 이미 가입·로그인된 상태로 온보딩을 건너뛴다. 스택을 통째로 비운다.
-      navigation.reset({index: 0, routes: [{name: 'Onboarding'}]});
-    } catch (e: any) {
-      if (e instanceof AuthApiError && e.status === 409) {
-        setEmailServerError(e.message);
-        emailRef.current?.focus();
-      } else if (e instanceof AuthApiError) {
-        Alert.alert('회원가입 실패', e.message);
-      } else {
-        Alert.alert('회원가입 실패', '서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.');
-      }
-    } finally {
-      setLoading(false);
-    }
+    // 여기서는 서버를 부르지 않는다.
+    // 예전엔 이 버튼에서 바로 가입시켜서, 온보딩 도중 이탈하면 온보딩 값이 빈 계정만 DB에 남았다.
+    // 실제 가입은 온보딩 결과 화면의 "가입하기"에서 한 번에 이뤄진다. (중복 이메일 등 서버 에러도 거기서 안내)
+    navigation.navigate('Onboarding', {
+      signup: {email: email.trim(), password, nickname: name.trim()},
+    });
   };
 
   return (
@@ -164,10 +140,7 @@ export default function SignupScreen() {
                 placeholder="이메일"
                 placeholderTextColor={colors.subText}
                 value={email}
-                onChangeText={v => {
-                  setEmail(v);
-                  setEmailServerError(null);
-                }}
+                onChangeText={setEmail}
                 onBlur={() => blur('email')}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -245,7 +218,7 @@ export default function SignupScreen() {
                 autoComplete="password-new"
                 textContentType="newPassword"
                 returnKeyType="done"
-                onSubmitEditing={handleSignup}
+                onSubmitEditing={handleNext}
               />
               <TouchableOpacity onPress={() => setShowPwConfirm(v => !v)} hitSlop={8}>
                 <MaterialIcons name={showPwConfirm ? 'visibility' : 'visibility-off'} size={20} color={colors.subText} />
@@ -276,15 +249,9 @@ export default function SignupScreen() {
             />
           </View>
 
-          <TouchableOpacity
-            style={[styles.signupBtn, loading && styles.btnDisabled]}
-            onPress={handleSignup}
-            disabled={loading}>
-            {loading ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.signupBtnText}>가입하기</Text>
-            )}
+          {/* 실제 가입은 온보딩 결과 화면에서 이뤄지므로 여기서는 "다음"이다 */}
+          <TouchableOpacity style={styles.signupBtn} onPress={handleNext}>
+            <Text style={styles.signupBtnText}>다음</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.bottomLink} onPress={() => navigation.navigate('Login')}>
@@ -348,7 +315,6 @@ function makeStyles(c: Colors, fs: number) {
       backgroundColor: c.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 6,
     },
     signupBtnText: {color: '#FFF', fontWeight: '800', fontSize: 16 * fs},
-    btnDisabled: {opacity: 0.6},
 
     bottomLink: {alignItems: 'center', marginTop: 8},
     bottomLinkText: {fontSize: 14 * fs, color: c.subText},
