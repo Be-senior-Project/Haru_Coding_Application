@@ -30,11 +30,9 @@ export default function ScrapScreen() {
   // 구분하지 않으면 "불러오지 못했어요"만 떠서 앱이 고장난 것처럼 보인다.
   const [needLogin, setNeedLogin] = useState(false);
 
+  // 상태를 미리 초기화하지 않고 결과가 나온 뒤에 바꾼다. 포커스마다 다시 불러올 때
+  // 기존 화면을 유지한 채 조용히 갱신해야 목록이 깜빡이지 않는다.
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(false);
-    setNeedLogin(false);
-
     const token = await AsyncStorage.getItem('accessToken');
     if (!token) {
       setNeedLogin(true);
@@ -44,6 +42,8 @@ export default function ScrapScreen() {
 
     try {
       setScraps(await scrapApi.list());
+      setNeedLogin(false);
+      setError(false);
     } catch (e: any) {
       // 토큰이 만료돼 갱신까지 실패한 경우도 로그인 유도로 보낸다.
       if (e?.status === 401 || e?.status === 403) {
@@ -64,31 +64,43 @@ export default function ScrapScreen() {
     }, [load]),
   );
 
-  const handleUnscrap = async (problemId: number) => {
-    // 목록에서 먼저 지워 반응을 즉시 보여주고, 실패하면 되돌린다.
-    const before = scraps;
-    setScraps(prev => prev.filter(s => s.problemId !== problemId));
+  const retry = () => {
+    setLoading(true);
+    load();
+  };
+
+  const handleUnscrap = async (item: Scrap) => {
+    // 목록에서 먼저 지워 반응을 즉시 보여주고, 실패하면 그 항목만 제자리에 되돌린다.
+    // 목록 전체를 이전 스냅샷으로 되돌리면 그 사이 해제에 성공한 항목까지 되살아난다.
+    const index = scraps.findIndex(s => s.problemId === item.problemId);
+    setScraps(prev => prev.filter(s => s.problemId !== item.problemId));
     try {
-      await scrapApi.toggle(problemId);
+      await scrapApi.toggle(item.problemId);
     } catch (e) {
       console.error('스크랩 해제 실패', e);
-      setScraps(before);
+      setScraps(prev => {
+        if (prev.some(s => s.problemId === item.problemId)) {
+          return prev;
+        }
+        const next = [...prev];
+        next.splice(Math.min(index, next.length), 0, item);
+        return next;
+      });
     }
   };
 
   const styles = makeStyles(colors);
 
+  let body: React.ReactNode;
   if (loading) {
-    return (
-      <View style={[styles.center, {paddingTop: insets.top}]}>
+    body = (
+      <View style={styles.center}>
         <ActivityIndicator color={colors.primary} />
       </View>
     );
-  }
-
-  if (needLogin) {
-    return (
-      <View style={[styles.center, {paddingTop: insets.top}]}>
+  } else if (needLogin) {
+    body = (
+      <View style={styles.center}>
         <MaterialIcons name="lock" size={30} color={colors.subText} />
         <Text style={styles.emptyText}>로그인하면 스크랩한 문제를 볼 수 있어요</Text>
         <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.loginBtn}>
@@ -96,29 +108,17 @@ export default function ScrapScreen() {
         </TouchableOpacity>
       </View>
     );
-  }
-
-  if (error) {
-    return (
-      <View style={[styles.center, {paddingTop: insets.top}]}>
+  } else if (error) {
+    body = (
+      <View style={styles.center}>
         <Text style={styles.emptyText}>스크랩 목록을 불러오지 못했어요.</Text>
-        <TouchableOpacity onPress={load} style={styles.retryBtn}>
+        <TouchableOpacity onPress={retry} style={styles.retryBtn}>
           <Text style={styles.retryText}>다시 시도</Text>
         </TouchableOpacity>
       </View>
     );
-  }
-
-  return (
-    <View style={[styles.container, {paddingTop: insets.top}]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>스크랩한 문제</Text>
-        <View style={{width: 24}} />
-      </View>
-
+  } else {
+    body = (
       <FlatList
         data={scraps}
         keyExtractor={item => String(item.scrapId)}
@@ -144,12 +144,26 @@ export default function ScrapScreen() {
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={`${item.title} 스크랩 해제`}
-              onPress={() => handleUnscrap(item.problemId)}>
+              onPress={() => handleUnscrap(item)}>
               <MaterialIcons name="bookmark" size={22} color={colors.primary} />
             </TouchableOpacity>
           </View>
         )}
       />
+    );
+  }
+
+  // 로그인 안내·에러 상태에서도 돌아갈 수 있도록 헤더는 항상 그린다.
+  return (
+    <View style={[styles.container, {paddingTop: insets.top}]}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
+          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>스크랩한 문제</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+      {body}
     </View>
   );
 }
@@ -163,6 +177,8 @@ const makeStyles = (colors: ReturnType<typeof useTheme>['colors']) =>
       paddingHorizontal: 16, paddingVertical: 12,
     },
     headerTitle: {fontSize: 17, fontWeight: '700', color: colors.text},
+    // 뒤로가기 아이콘과 같은 폭으로 제목을 가운데 맞춘다.
+    headerSpacer: {width: 24},
     listContent: {padding: 16, gap: 10},
     row: {
       flexDirection: 'row', alignItems: 'center', gap: 12,

@@ -31,11 +31,9 @@ export default function WrongNoteScreen() {
   // 구분하지 않으면 "불러오지 못했어요"만 떠서 앱이 고장난 것처럼 보인다.
   const [needLogin, setNeedLogin] = useState(false);
 
+  // 상태를 미리 초기화하지 않고 결과가 나온 뒤에 바꾼다. 포커스마다 다시 불러올 때
+  // 기존 화면을 유지한 채 조용히 갱신해야 목록이 깜빡이지 않는다.
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(false);
-    setNeedLogin(false);
-
     const token = await AsyncStorage.getItem('accessToken');
     if (!token) {
       setNeedLogin(true);
@@ -45,6 +43,8 @@ export default function WrongNoteScreen() {
 
     try {
       setNotes(await wrongNoteApi.list());
+      setNeedLogin(false);
+      setError(false);
     } catch (e: any) {
       // 토큰이 만료돼 갱신까지 실패한 경우도 로그인 유도로 보낸다.
       if (e?.status === 401 || e?.status === 403) {
@@ -65,19 +65,23 @@ export default function WrongNoteScreen() {
     }, [load]),
   );
 
+  const retry = () => {
+    setLoading(true);
+    load();
+  };
+
   const styles = makeStyles(colors);
 
+  let body: React.ReactNode;
   if (loading) {
-    return (
-      <View style={[styles.center, {paddingTop: insets.top}]}>
+    body = (
+      <View style={styles.center}>
         <ActivityIndicator color={colors.primary} />
       </View>
     );
-  }
-
-  if (needLogin) {
-    return (
-      <View style={[styles.center, {paddingTop: insets.top}]}>
+  } else if (needLogin) {
+    body = (
+      <View style={styles.center}>
         <MaterialIcons name="lock" size={30} color={colors.subText} />
         <Text style={styles.emptyText}>로그인하면 틀린 문제를 모아볼 수 있어요</Text>
         <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.loginBtn}>
@@ -85,29 +89,17 @@ export default function WrongNoteScreen() {
         </TouchableOpacity>
       </View>
     );
-  }
-
-  if (error) {
-    return (
-      <View style={[styles.center, {paddingTop: insets.top}]}>
+  } else if (error) {
+    body = (
+      <View style={styles.center}>
         <Text style={styles.emptyText}>오답노트를 불러오지 못했어요.</Text>
-        <TouchableOpacity onPress={load} style={styles.retryBtn}>
+        <TouchableOpacity onPress={retry} style={styles.retryBtn}>
           <Text style={styles.retryText}>다시 시도</Text>
         </TouchableOpacity>
       </View>
     );
-  }
-
-  return (
-    <View style={[styles.container, {paddingTop: insets.top}]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>오답노트</Text>
-        <View style={{width: 24}} />
-      </View>
-
+  } else {
+    body = (
       <FlatList
         data={notes}
         keyExtractor={item => String(item.problemId)}
@@ -126,6 +118,20 @@ export default function WrongNoteScreen() {
           </TouchableOpacity>
         )}
       />
+    );
+  }
+
+  // 로그인 안내·에러 상태에서도 돌아갈 수 있도록 헤더는 항상 그린다.
+  return (
+    <View style={[styles.container, {paddingTop: insets.top}]}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
+          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>오답노트</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+      {body}
     </View>
   );
 }
@@ -139,6 +145,8 @@ const makeStyles = (colors: ReturnType<typeof useTheme>['colors']) =>
       paddingHorizontal: 16, paddingVertical: 12,
     },
     headerTitle: {fontSize: 17, fontWeight: '700', color: colors.text},
+    // 뒤로가기 아이콘과 같은 폭으로 제목을 가운데 맞춘다.
+    headerSpacer: {width: 24},
     listContent: {padding: 16, gap: 10},
     row: {
       backgroundColor: colors.card, borderRadius: 12, padding: 14,
