@@ -145,7 +145,7 @@ export default function ScrapScreen() {
               accessibilityRole="button"
               accessibilityLabel={`${item.title} 스크랩 해제`}
               onPress={() => handleUnscrap(item)}>
-              <MaterialIcons name="bookmark" size={22} color={colors.primary} />
+              <MaterialIcons name="bookmark" size={22} color={colors.scrap} />
             </TouchableOpacity>
           </View>
         )}

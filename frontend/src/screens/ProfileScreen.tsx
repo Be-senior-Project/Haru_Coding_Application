@@ -8,7 +8,8 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTheme, tierFromLevel, type Colors, type FontSizeKey} from '../theme/ThemeContext';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import {RootStackParamList} from '../navigation/AppNavigator';
+import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
+import {RootStackParamList, type TabParamList} from '../navigation/AppNavigator';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import {userApi, type UserProfile} from '../api/userApi';
@@ -20,7 +21,6 @@ const FONT_SIZE_OPTIONS: {key: FontSizeKey; size: number}[] = [
   {key: 'large', size: 22},
 ];
 
-const SOON = (title: string) => () => Alert.alert(title, '곧 추가될 기능이에요.');
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -30,6 +30,8 @@ export default function ProfileScreen() {
   const {colors, isDark, toggleTheme, fontScale, fontSizeKey, setFontSize} = useTheme();
   const styles = useMemo(() => makeStyles(colors, fontScale), [colors, fontScale]);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  // 같은 navigation 객체지만, 탭 이동(학습 통계)은 탭 타입으로 부른다.
+  const tabNavigation = useNavigation<BottomTabNavigationProp<TabParamList>>();
 
   useFocusEffect(
     useCallback(() => {
@@ -131,7 +133,7 @@ export default function ProfileScreen() {
           </View>
 
           {/* 연속 학습 배너 (실제 streakDays) */}
-          <TouchableOpacity style={styles.streakBanner} activeOpacity={0.85} onPress={SOON('연속 학습')}>
+          <TouchableOpacity style={styles.streakBanner} activeOpacity={0.85} onPress={() => tabNavigation.navigate('학습 통계')}>
             <MaterialCommunityIcons name="fire" size={22} color={colors.streak} />
             <View style={styles.streakTextWrap}>
               <Text style={styles.streakTitle}>{profile.streakDays}일 연속 학습 중!</Text>

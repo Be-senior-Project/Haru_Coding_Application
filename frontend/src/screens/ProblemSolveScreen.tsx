@@ -312,11 +312,8 @@ export default function ProblemSolveScreen() {
             <MaterialIcons
               name={scrapped ? 'bookmark' : 'bookmark-border'}
               size={22}
-              color={scrapped ? colors.primary : colors.text}
+              color={scrapped ? colors.scrap : colors.text}
             />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => Alert.alert('메뉴', '준비 중이에요.')} hitSlop={8}>
-            <MaterialIcons name="more-vert" size={22} color={colors.text} />
           </TouchableOpacity>
         </View>
       </View>

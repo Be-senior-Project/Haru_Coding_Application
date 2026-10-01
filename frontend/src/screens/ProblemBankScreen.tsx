@@ -106,8 +106,8 @@ export default function ProblemBankScreen() {
           style={styles.shortcut}
           activeOpacity={0.85}
           onPress={() => navigation.navigate('Scrap')}>
-          <View style={[styles.shortcutIcon, {backgroundColor: colors.primarySoft}]}>
-            <MaterialIcons name="bookmark" size={20} color={colors.primary} />
+          <View style={[styles.shortcutIcon, {backgroundColor: colors.scrapSoft}]}>
+            <MaterialIcons name="bookmark" size={20} color={colors.scrap} />
           </View>
           <View style={styles.shortcutText}>
             <Text style={styles.shortcutLabel}>스크랩</Text>

@@ -21,6 +21,8 @@ export type Colors = {
   dangerSoft: string;
   warning: string;      // 주의 · 팁 · 중급 난이도
   warningSoft: string;
+  scrap: string;        // 스크랩(북마크)된 상태 아이콘
+  scrapSoft: string;
   streak: string;       // 연속 학습 · 불꽃
   streakSoft: string;
   info: string;         // 정보 · 중립 강조
@@ -81,6 +83,8 @@ const light: Colors = {
   danger: '#F44336',
   dangerSoft: '#FFEBEE',
   warning: '#F5B301',
+  scrap: '#F5B301',
+  scrapSoft: '#FFF3E0',
   warningSoft: '#FFF3E0',
   streak: '#FF6B35',
   streakSoft: '#FFF1E6',
@@ -107,6 +111,8 @@ const dark: Colors = {
   danger: '#FF6B6B',
   dangerSoft: '#3A1E20',
   warning: '#FFC93C',
+  scrap: '#FFC93C',
+  scrapSoft: '#332711',
   warningSoft: '#332711',
   streak: '#FF8A5C',
   streakSoft: '#3A2118',
