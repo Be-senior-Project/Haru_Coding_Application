@@ -19,6 +19,12 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 type RouteProps = RouteProp<RootStackParamList, 'ProblemSolve'>;
 
+// 빈칸 답 비교: 서버(ProblemService.norm)와 똑같이 모든 공백을 빼고 소문자로 비교한다.
+// 앞뒤 공백만 빼던 탓에 "i % 2 ==1"이 서버에선 정답인데 칸은 빨간색으로 보였다.
+function normBlank(s: string | undefined): string {
+  return (s ?? '').replace(/\s+/g, '').toLowerCase();
+}
+
 function normalizeCode(s: string): string {
   return s.replace(/\r/g, '').split('\n').map(l => l.replace(/\s+$/, '')).join('\n').trim();
 }
@@ -200,7 +206,7 @@ export default function ProblemSolveScreen() {
     if (problem.type === 'FILL_IN_THE_BLANK') {
       const ans = (problem.answer as string[]) ?? [];
       return ans.length > 0 &&
-        ans.every((a, i) => (fillAnswers[i] ?? '').trim().toLowerCase() === a.trim().toLowerCase());
+        ans.every((a, i) => normBlank(fillAnswers[i]) === normBlank(a));
     }
     return normalizeCode(codeAnswer) === normalizeCode(problem.answer as string);
   };
@@ -279,8 +285,13 @@ export default function ProblemSolveScreen() {
     }
   };
 
+  // 문제 은행·오답노트·스크랩에서 한 문제만 연 경우. 세트가 아니므로 "1문제 중 1개 정답 100%" 완료 팝업은 띄우지 않는다.
+  const isSingleProblem = route.params.problemId != null && !passedProblems;
+
   const handleNext = () => {
-    if (currentIndex < problems.length - 1) {
+    if (isSingleProblem) {
+      navigation.goBack();
+    } else if (currentIndex < problems.length - 1) {
       setCurrentIndex(prev => prev + 1);
     } else {
       const correctCount = results.filter(r => r.correct).length;
@@ -461,7 +472,7 @@ export default function ProblemSolveScreen() {
           )}
           {!!resultExplain && <Text style={styles.resultExplain}>{resultExplain}</Text>}
           <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
-            <Text style={styles.nextBtnText}>{isLastProblem ? '결과 보기' : '다음 문제 →'}</Text>
+            <Text style={styles.nextBtnText}>{isSingleProblem ? '목록으로' : isLastProblem ? '결과 보기' : '다음 문제 →'}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -482,7 +493,7 @@ function FillBlank({count, values, submitted, correctAnswers, onChange}: {
       {Array.from({length: count}).map((_, i) => {
         const hasAnswer = correctAnswers.length > i;
         const correct = submitted && hasAnswer &&
-          values[i]?.trim().toLowerCase() === correctAnswers[i]?.toLowerCase();
+          normBlank(values[i]) === normBlank(correctAnswers[i]);
         const wrong = submitted && !correct;
         return (
           <View key={i} style={styles.fillRow}>

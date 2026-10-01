@@ -15,6 +15,7 @@ import {problemApi} from '../api/problemApi';
 import {statsApi, type StatsData} from '../api/statsApi';
 import {userApi, type UserProfile} from '../api/userApi';
 import {topicApi, type Topic} from '../api/topicApi';
+import {effectiveDailyGoal} from '../utils/dailyGoal';
 
 type TopicTone = 'success' | 'info' | 'primary' | 'streak';
 
@@ -99,7 +100,7 @@ export default function HomeScreen() {
     }
     setStarting(true);
     try {
-      const problems = await problemApi.startSet(profile?.dailyGoalCount ?? 3);
+      const problems = await problemApi.startSet(effectiveDailyGoal(profile?.dailyGoalCount));
       if (!problems || problems.length === 0) {
         Alert.alert('준비 중', '문제를 준비하지 못했어요. 잠시 후 다시 시도해주세요.');
         return;
@@ -143,8 +144,8 @@ export default function HomeScreen() {
     });
   }, [topics, stats]);
 
-  // 오늘의 목표(문제 갯수 기준): 하루 목표 문제 수 대비 "오늘" 푼 문제 수 (마이페이지에서 조절, MY-018)
-  const dailyGoal = profile?.dailyGoalCount ?? 3;
+  // 오늘의 목표(문제 갯수 기준): 하루 목표 문제 수 대비 "오늘" 푼 문제 수 (마이페이지에서 조절, MY-018, 최소 4)
+  const dailyGoal = effectiveDailyGoal(profile?.dailyGoalCount);
   // 서버 weeklyActivity는 월~일 순서의 날짜별 풀이 수다. JS getDay()는 일=0이라 월=0으로 맞춘다.
   // (예전엔 아무도 쓰지 않는 로컬 저장값 solvedCount_날짜를 읽어서 항상 0이었다)
   const todayCount = stats?.weeklyActivity?.[(new Date().getDay() + 6) % 7] ?? 0;
@@ -181,12 +182,12 @@ export default function HomeScreen() {
         </View>
         <View style={styles.goalMidRow}>
           <View style={styles.goalValueRow}>
-            {/* 목표보다 더 풀었으면 그대로 보여준다(4 / 3). 진행 막대만 100%에서 멈춘다. */}
+            {/* 목표보다 더 풀었으면 실제로 푼 수를 그대로 보여준다(6 / 4). 진행 막대만 100%에서 멈춘다. */}
             <Text style={styles.goalValue}>{todayCount}</Text>
             <Text style={styles.goalUnit}> / {dailyGoal}문제</Text>
           </View>
           <Text style={styles.goalDone}>
-            {goalPct >= 100 ? '목표 달성! 🎉' : `${dailyGoal - goalSolved}문제 남음`}
+            {goalPct >= 100 ? '목표 달성!' : `${dailyGoal - goalSolved}문제 남음`}
           </Text>
         </View>
         <View style={styles.goalBarTrack}>
