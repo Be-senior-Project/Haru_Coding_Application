@@ -72,10 +72,10 @@ public class AuthService {
     @Transactional
     public LoginResponse login(LoginRequest dto) {
         User user = userRepository.findByEmailHash(encryptor.hash(dto.getEmail()))
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_CREDENTIALS));
 
         if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
-            throw new CustomException(ErrorCode.INVALID_PASSWORD);
+            throw new CustomException(ErrorCode.INVALID_CREDENTIALS);
         }
 
         return issueTokens(user);
