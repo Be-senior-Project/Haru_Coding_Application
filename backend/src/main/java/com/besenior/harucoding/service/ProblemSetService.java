@@ -177,18 +177,22 @@ public class ProblemSetService {
         boolean streakUpdated = updateStreak(user);
         if (streakUpdated) xpEarned += XP_STREAK_BONUS;
 
-        // XP 로그 저장
+        // XP 로그 저장 + User 반영
         if (xpEarned > 0) {
             xpLogRepository.save(UserXpLog.builder()
                     .user(user).xpAmount(xpEarned).reason(XpReason.SOLVE_CORRECT).build());
+            user.addXp(xpEarned);
         }
+
+        int currentStreak = getCurrentStreak(user.getId());
+        user.updateStreakDays(currentStreak);
 
         return SubmitResultResponse.builder()
                 .totalProblems(request.getAnswers().size())
                 .correctCount(correctCount)
                 .xpEarned(xpEarned)
                 .streakUpdated(streakUpdated)
-                .currentStreak(getCurrentStreak(user.getId()))
+                .currentStreak(currentStreak)
                 .results(results)
                 .build();
     }

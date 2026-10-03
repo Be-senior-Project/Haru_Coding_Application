@@ -109,4 +109,13 @@ public class User {
         this.codingLevel = codingLevel;
         this.cotePrepared = cotePrepared;
     }
+
+    public void addXp(int amount) {
+        this.xp += amount;
+        this.level = (this.xp / 100) + 1;
+    }
+
+    public void updateStreakDays(int days) {
+        this.streakDays = days;
+    }
 }

@@ -99,9 +99,11 @@ public class ProblemService {
             if (updateStreak(user)) xpEarned += XP_STREAK_BONUS;
             xpLogRepository.save(UserXpLog.builder()
                     .user(user).xpAmount(xpEarned).reason(XpReason.SOLVE_CORRECT).build());
+            user.addXp(xpEarned);
         }
 
         int currentStreak = getCurrentStreak(userId);
+        user.updateStreakDays(currentStreak);
 
         return AttemptResultResponse.builder()
                 .problemId(problem.getId())
