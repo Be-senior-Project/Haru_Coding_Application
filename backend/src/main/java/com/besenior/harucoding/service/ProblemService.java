@@ -132,6 +132,11 @@ public class ProblemService {
      * (실행 불가 — 스켈레톤/시그니처/IO 누락 또는 내부오류 — 시에만 문자열 비교로 폴백)
      */
     private boolean grade(Problem problem, Object userAnswer) {
+        // 빈칸 문제: IO 예시 1개만으로는 오답을 걸러내지 못하므로 빈칸별 문자열 비교로 채점
+        if (problem.getType() == ProblemType.FILL_IN_THE_BLANK) {
+            log.info("채점[빈칸비교]: 빈칸별 문자열 비교 사용");
+            return checkAnswer(problem.getAnswer(), userAnswer);
+        }
         try {
             ObjectNode node = buildVerifyNode(problem, userAnswer);
             if (node != null) {
