@@ -87,10 +87,28 @@ export default function ProfileScreen() {
     ]);
   };
 
-  // 백엔드에 DELETE /api/users/me 가 아직 없어 실제 탈퇴는 막아둔다.
-  // 엔드포인트가 생기면 userApi.deleteMe() 호출 + handleLogout()으로 되돌리면 됨.
+  const handleWithdraw = async () => {
+    try {
+      await userApi.deleteMe();
+      await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
+      setHasToken(false);
+      setProfile(null);
+      setStreak(null);
+      navigation.reset({index: 0, routes: [{name: 'Login'}]});
+    } catch (e) {
+      Alert.alert('탈퇴 실패', '잠시 후 다시 시도해 주세요.');
+    }
+  };
+
   const confirmWithdraw = () => {
-    Alert.alert('탈퇴하기', '탈퇴 기능은 아직 준비 중이에요. 조금만 기다려 주세요.');
+    Alert.alert(
+      '탈퇴하기',
+      '탈퇴하면 모든 학습 기록이 삭제되고 복구할 수 없어요. 정말 탈퇴할까요?',
+      [
+        {text: '취소', style: 'cancel'},
+        {text: '탈퇴하기', style: 'destructive', onPress: handleWithdraw},
+      ],
+    );
   };
 
   const xpProgress = profile ? profile.xp % 100 : 0;
