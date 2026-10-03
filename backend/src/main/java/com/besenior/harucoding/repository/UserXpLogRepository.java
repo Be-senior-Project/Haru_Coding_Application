@@ -12,4 +12,6 @@ public interface UserXpLogRepository extends JpaRepository<UserXpLog, Long> {
 
     @Query("SELECT COALESCE(SUM(x.xpAmount), 0) FROM UserXpLog x WHERE x.user.id = :userId")
     int sumXpByUserId(@Param("userId") Long userId);
+
+    void deleteAllByUserId(Long userId);
 }

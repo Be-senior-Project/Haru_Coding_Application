@@ -33,6 +33,15 @@ public class UserController {
         return ApiResponse.success(userService.updateProfile(userId, request));
     }
 
+    /** 회원 탈퇴. 모든 관련 데이터를 삭제한다. */
+    @DeleteMapping("/me")
+    public ApiResponse<Void> deleteAccount(
+            @RequestHeader("Authorization") String token) {
+        Long userId = jwtProvider.getUserId(token.replace("Bearer ", ""));
+        userService.deleteAccount(userId);
+        return ApiResponse.success("회원 탈퇴가 완료되었습니다.", null);
+    }
+
     /** 온보딩 답변 저장. 가입이 확정된 직후("가입하기" 버튼)에 호출한다. */
     @PostMapping("/me/onboarding")
     public ApiResponse<Void> saveOnboarding(

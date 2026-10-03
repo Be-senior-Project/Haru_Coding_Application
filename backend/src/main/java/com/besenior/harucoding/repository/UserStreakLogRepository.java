@@ -19,4 +19,6 @@ public interface UserStreakLogRepository extends JpaRepository<UserStreakLog, Lo
         LIMIT 1
         """)
     Optional<UserStreakLog> findLatestByUserId(@Param("userId") Long userId);
+
+    void deleteAllByUserId(Long userId);
 }

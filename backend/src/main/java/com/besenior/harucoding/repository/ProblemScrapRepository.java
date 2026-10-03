@@ -22,4 +22,6 @@ public interface ProblemScrapRepository extends JpaRepository<ProblemScrap, Long
     Optional<ProblemScrap> findByUserIdAndProblemId(Long userId, Long problemId);
 
     boolean existsByUserIdAndProblemId(Long userId, Long problemId);
+
+    void deleteAllByUserId(Long userId);
 }

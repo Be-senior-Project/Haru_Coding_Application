@@ -35,4 +35,6 @@ public interface UserProblemRecordRepository extends JpaRepository<UserProblemRe
         ORDER BY r.solvedAt DESC
         """)
     List<UserProblemRecord> findWrongRecordsByUserId(@Param("userId") Long userId);
+
+    void deleteAllByUserId(Long userId);
 }
