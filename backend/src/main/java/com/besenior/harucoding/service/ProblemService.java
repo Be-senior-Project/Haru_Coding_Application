@@ -98,9 +98,7 @@ public class ProblemService {
                     .user(user).xpAmount(xpEarned).reason(XpReason.SOLVE_CORRECT).build());
         }
 
-        int currentStreak = streakLogRepository.findLatestByUserId(userId)
-                .map(UserStreakLog::getStreakCount)
-                .orElse(0);
+        int currentStreak = getCurrentStreak(userId);
 
         return AttemptResultResponse.builder()
                 .problemId(problem.getId())
@@ -256,6 +254,17 @@ public class ProblemService {
     private String normCode(String s) {
         // 코드 답: 공백·줄바꿈·들여쓰기 차이 무시 (모든 공백 제거 후 비교)
         return s == null ? "" : s.replaceAll("\\s+", "");
+    }
+
+    private int getCurrentStreak(Long userId) {
+        return streakLogRepository.findLatestByUserId(userId)
+                .filter(log -> {
+                    LocalDate last = log.getStreakDate();
+                    LocalDate today = LocalDate.now();
+                    return last.equals(today) || last.equals(today.minusDays(1));
+                })
+                .map(UserStreakLog::getStreakCount)
+                .orElse(0);
     }
 
     // ── 스트릭 갱신 (오늘 첫 정답이면 true) ──────────────────────

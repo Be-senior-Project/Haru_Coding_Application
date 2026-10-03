@@ -185,7 +185,7 @@ public class ProblemSetService {
                 .correctCount(correctCount)
                 .xpEarned(xpEarned)
                 .streakUpdated(streakUpdated)
-                .currentStreak(user.getStreakDays())
+                .currentStreak(getCurrentStreak(user.getId()))
                 .results(results)
                 .build();
     }
@@ -193,6 +193,17 @@ public class ProblemSetService {
     private boolean checkAnswer(Problem problem, Object userAnswer) {
         if (userAnswer == null || problem.getAnswer() == null) return false;
         return problem.getAnswer().toString().equalsIgnoreCase(userAnswer.toString());
+    }
+
+    private int getCurrentStreak(Long userId) {
+        return streakLogRepository.findLatestByUserId(userId)
+                .filter(log -> {
+                    LocalDate last = log.getStreakDate();
+                    LocalDate today = LocalDate.now();
+                    return last.equals(today) || last.equals(today.minusDays(1));
+                })
+                .map(UserStreakLog::getStreakCount)
+                .orElse(0);
     }
 
     private boolean updateStreak(User user) {

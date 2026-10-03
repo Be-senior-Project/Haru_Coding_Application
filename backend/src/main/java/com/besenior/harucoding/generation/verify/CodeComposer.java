@@ -38,7 +38,14 @@ public final class CodeComposer {
             for (int i = 0; i < lines.length; i++) {
                 String line = lines[i];
                 if (line.strip().equals(CORE)) {
-                    sb.append(ans);
+                    String indent = line.substring(0, line.indexOf(CORE));
+                    String[] ansLines = ans.split("\n", -1);
+                    for (int j = 0; j < ansLines.length; j++) {
+                        if (j > 0) sb.append("\n");
+                        if (!ansLines[j].isEmpty()) {
+                            sb.append(indent).append(ansLines[j]);
+                        }
+                    }
                 } else if (line.contains(CORE)) {
                     sb.append(line.replace(CORE, ans));
                 } else {

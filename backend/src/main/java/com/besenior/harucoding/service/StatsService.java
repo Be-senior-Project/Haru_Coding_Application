@@ -46,9 +46,7 @@ public class StatsService {
                 : Math.round((double) correctCount / totalSolved * 1000) / 10.0;
 
         // 현재 스트릭 (기간과 무관하게 연속 학습일은 항상 전체 기준)
-        int currentStreak = streakLogRepository.findLatestByUserId(userId)
-                .map(UserStreakLog::getStreakCount)
-                .orElse(0);
+        int currentStreak = getCurrentStreak(userId);
 
         // 주간 활동 (이번 주 월~일) — 탭과 무관하게 항상 최근 7일 위젯
         List<Integer> weeklyActivity = getWeeklyActivity(userId);
@@ -114,6 +112,18 @@ public class StatsService {
                     .build());
         }
         return result;
+    }
+
+    /** 마지막 학습일이 오늘 또는 어제가 아니면 streak는 0 */
+    private int getCurrentStreak(Long userId) {
+        return streakLogRepository.findLatestByUserId(userId)
+                .filter(log -> {
+                    LocalDate last = log.getStreakDate();
+                    LocalDate today = LocalDate.now();
+                    return last.equals(today) || last.equals(today.minusDays(1));
+                })
+                .map(UserStreakLog::getStreakCount)
+                .orElse(0);
     }
 
     private List<Integer> getWeeklyActivity(Long userId) {
