@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -77,9 +78,11 @@ public class StatsService {
                 .build();
     }
 
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
     /** period(ALL|WEEK|MONTH|YEAR) → 집계 시작 시각. ALL 또는 알 수 없는 값이면 null(제한 없음). */
     private LocalDateTime periodStart(String period) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(KST);
         return switch (period == null ? "ALL" : period.toUpperCase()) {
             case "WEEK" -> today.with(DayOfWeek.MONDAY).atStartOfDay();
             case "MONTH" -> today.withDayOfMonth(1).atStartOfDay();
@@ -119,7 +122,7 @@ public class StatsService {
         return streakLogRepository.findLatestByUserId(userId)
                 .filter(log -> {
                     LocalDate last = log.getStreakDate();
-                    LocalDate today = LocalDate.now();
+                    LocalDate today = LocalDate.now(KST);
                     return last.equals(today) || last.equals(today.minusDays(1));
                 })
                 .map(UserStreakLog::getStreakCount)
@@ -127,7 +130,7 @@ public class StatsService {
     }
 
     private List<Integer> getWeeklyActivity(Long userId) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(KST);
         LocalDate monday = today.with(DayOfWeek.MONDAY);
 
         List<UserProblemRecord> records = recordRepository.findByUserIdOrderBySolvedAtDesc(userId);
@@ -135,7 +138,7 @@ public class StatsService {
         // 날짜별 풀이 수 집계
         Map<LocalDate, Long> countByDate = records.stream()
                 .collect(Collectors.groupingBy(
-                        r -> r.getSolvedAt().toLocalDate(),
+                        r -> r.getSolvedAt().atZone(KST).toLocalDate(),
                         Collectors.counting()
                 ));
 

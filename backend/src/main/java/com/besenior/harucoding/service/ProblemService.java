@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
@@ -27,6 +28,8 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class ProblemService {
+
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final ProblemRepository problemRepository;
     private final UserRepository userRepository;
@@ -260,7 +263,7 @@ public class ProblemService {
         return streakLogRepository.findLatestByUserId(userId)
                 .filter(log -> {
                     LocalDate last = log.getStreakDate();
-                    LocalDate today = LocalDate.now();
+                    LocalDate today = LocalDate.now(KST);
                     return last.equals(today) || last.equals(today.minusDays(1));
                 })
                 .map(UserStreakLog::getStreakCount)
@@ -269,7 +272,7 @@ public class ProblemService {
 
     // ── 스트릭 갱신 (오늘 첫 정답이면 true) ──────────────────────
     private boolean updateStreak(User user) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(KST);
         if (streakLogRepository.findByUserIdAndStreakDate(user.getId(), today).isPresent()) {
             return false;
         }
