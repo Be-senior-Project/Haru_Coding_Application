@@ -10,6 +10,7 @@ import type {RootStackParamList} from '../navigation/AppNavigator';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {userApi} from '../api/userApi';
+import {DAILY_GOAL_MIN as GOAL_MIN, DAILY_GOAL_MAX as GOAL_MAX, effectiveDailyGoal} from '../utils/dailyGoal';
 
 // 라벨은 사용자용, value는 백엔드 허용값(users_preferred_language_check: JAVA/PYTHON/C/JS)
 const LANGUAGES: {label: string; value: string}[] = [
@@ -18,8 +19,6 @@ const LANGUAGES: {label: string; value: string}[] = [
   {label: 'C', value: 'C'},
 ];
 
-const GOAL_MIN = 1;
-const GOAL_MAX = 10;
 
 // value는 백엔드 허용값(users_difficulty_level_check: L1~L5), 'AUTO'는 자동 추천으로 되돌리는 프론트 전용 선택지
 const DIFFICULTY_LEVELS: {label: string; value: string}[] = [
@@ -39,7 +38,7 @@ export default function ProfileEditScreen() {
 
   const [nickname, setNickname] = useState('');
   const [language, setLanguage] = useState<string | null>(null);
-  const [dailyGoal, setDailyGoal] = useState(3);
+  const [dailyGoal, setDailyGoal] = useState(GOAL_MIN);
   const [difficulty, setDifficulty] = useState('AUTO');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -51,7 +50,7 @@ export default function ProfileEditScreen() {
         if (!alive) {return;}
         setNickname(p.nickname ?? '');
         setLanguage(p.preferredLanguage ?? null);
-        setDailyGoal(p.dailyGoalCount ?? 3);
+        setDailyGoal(effectiveDailyGoal(p.dailyGoalCount));
         setDifficulty(p.difficultyLevel ?? 'AUTO');
       })
       .catch(() => Alert.alert('오류', '프로필을 불러오지 못했어요.'))

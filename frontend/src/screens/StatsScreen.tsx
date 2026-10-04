@@ -6,6 +6,7 @@ import {useFocusEffect} from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {statsApi, type StatsData, type StatsPeriod} from '../api/statsApi';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import ProgressRing from '../components/ProgressRing';
 
 const WEEK_DAYS = ['월', '화', '수', '목', '금', '토', '일'];
 const TABS = ['전체', '주간', '월간', '연간'] as const;
@@ -156,14 +157,16 @@ export default function StatsScreen() {
               <Text style={styles.weekUnit}> 문제</Text>
             </View>
           </View>
-          {/* 정답률 링 (실제 정답률) */}
-          <View style={styles.ringWrap}>
-            <View style={styles.ring} />
-            <View style={styles.ringInner}>
-              <Text style={styles.ringValue}>{accuracy}%</Text>
-              <Text style={styles.ringLabel}>정답률</Text>
-            </View>
-          </View>
+          {/* 정답률 링 — 예전엔 값과 상관없이 늘 3/4이 칠해진 장식이었다 */}
+          <ProgressRing
+            size={84}
+            thickness={6}
+            progress={accuracy / 100}
+            color={colors.primary}
+            trackColor={colors.border}>
+            <Text style={styles.ringValue}>{accuracy}%</Text>
+            <Text style={styles.ringLabel}>정답률</Text>
+          </ProgressRing>
         </View>
 
         {/* 바 차트는 백엔드가 주는 weeklyActivity(월~일) 기준이라 탭과 무관하게 최근 7일 */}
@@ -282,12 +285,6 @@ function makeStyles(c: Colors, fs: number) {
     weekUnit: {fontSize: 15 * fs, fontWeight: '600', color: c.subText},
 
     // 링
-    ringWrap: {width: 84, height: 84, alignItems: 'center', justifyContent: 'center'},
-    ring: {
-      position: 'absolute', width: 84, height: 84, borderRadius: 42, borderWidth: 6,
-      borderColor: c.primary, borderBottomColor: c.border, transform: [{rotate: '-45deg'}],
-    },
-    ringInner: {alignItems: 'center'},
     ringValue: {fontSize: 17 * fs, fontWeight: '800', color: c.text},
     ringLabel: {fontSize: 10 * fs, color: c.subText, marginTop: 1},
 

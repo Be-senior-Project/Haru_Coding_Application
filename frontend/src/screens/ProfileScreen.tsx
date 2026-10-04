@@ -8,10 +8,12 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTheme, tierFromLevel, type Colors, type FontSizeKey} from '../theme/ThemeContext';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import {RootStackParamList} from '../navigation/AppNavigator';
+import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
+import {RootStackParamList, type TabParamList} from '../navigation/AppNavigator';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import {userApi, type UserProfile} from '../api/userApi';
+import {statsApi} from '../api/statsApi';
 import {logout as logoutApi} from '../api/authApi';
 
 const FONT_SIZE_OPTIONS: {key: FontSizeKey; size: number}[] = [
@@ -20,16 +22,20 @@ const FONT_SIZE_OPTIONS: {key: FontSizeKey; size: number}[] = [
   {key: 'large', size: 22},
 ];
 
-const SOON = (title: string) => () => Alert.alert(title, '곧 추가될 기능이에요.');
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  // 연속 학습일은 홈·학습 통계와 같은 출처(/api/stats/me)를 쓴다.
+  // 프로필의 streakDays는 서버에서 갱신되지 않아 늘 0이었다.
+  const [streak, setStreak] = useState<number | null>(null);
   const [hasToken, setHasToken] = useState(false);
   const [loading, setLoading] = useState(false);
   const insets = useSafeAreaInsets();
   const {colors, isDark, toggleTheme, fontScale, fontSizeKey, setFontSize} = useTheme();
   const styles = useMemo(() => makeStyles(colors, fontScale), [colors, fontScale]);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  // 같은 navigation 객체지만, 탭 이동(학습 통계)은 탭 타입으로 부른다.
+  const tabNavigation = useNavigation<BottomTabNavigationProp<TabParamList>>();
 
   useFocusEffect(
     useCallback(() => {
@@ -46,6 +52,11 @@ export default function ProfileScreen() {
       setProfile(await userApi.getMe());
     } catch (e) {
       console.error('프로필 로드 실패', e);
+    }
+    try {
+      setStreak((await statsApi.getMyStats()).currentStreak);
+    } catch {
+      setStreak(null);
     } finally {
       setLoading(false);
     }
@@ -65,6 +76,7 @@ export default function ProfileScreen() {
     await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
     setHasToken(false);
     setProfile(null);
+    setStreak(null);
     navigation.reset({index: 0, routes: [{name: 'Login'}]});
   };
 
@@ -83,6 +95,7 @@ export default function ProfileScreen() {
 
   const xpProgress = profile ? profile.xp % 100 : 0;
   const tier = profile ? tierFromLevel(profile.level) : null;
+  const streakDays = streak ?? 0;
 
   return (
     <ScrollView
@@ -130,12 +143,21 @@ export default function ProfileScreen() {
             )}
           </View>
 
-          {/* 연속 학습 배너 (실제 streakDays) */}
-          <TouchableOpacity style={styles.streakBanner} activeOpacity={0.85} onPress={SOON('연속 학습')}>
-            <MaterialCommunityIcons name="fire" size={22} color={colors.streak} />
+          {/* 연속 학습 배너: 0일이면 시작을 권하고 홈(오늘의 문제)으로, 1일 이상이면 학습 통계로 */}
+          <TouchableOpacity
+            style={styles.streakBanner}
+            activeOpacity={0.85}
+            onPress={() => tabNavigation.navigate(streakDays > 0 ? '학습 통계' : '홈')}>
+            <MaterialCommunityIcons name="fire" size={22} color={streakDays > 0 ? colors.streak : colors.subText} />
             <View style={styles.streakTextWrap}>
-              <Text style={styles.streakTitle}>{profile.streakDays}일 연속 학습 중!</Text>
-              <Text style={styles.streakSub}>매일 학습하고 더 높은 레벨에 도전하세요!</Text>
+              <Text style={styles.streakTitle}>
+                {streakDays > 0 ? `${streakDays}일 연속 학습 중!` : '오늘 문제를 풀고 연속 학습을 시작하세요!'}
+              </Text>
+              <Text style={styles.streakSub}>
+                {streakDays > 0
+                  ? `내일도 풀면 ${streakDays + 1}일! 하루라도 쉬면 0일부터 다시 시작해요`
+                  : '매일 풀면 하루씩 늘고, 하루라도 쉬면 0일로 돌아가요'}
+              </Text>
             </View>
             <MaterialIcons name="chevron-right" size={22} color={colors.subText} />
           </TouchableOpacity>
@@ -146,7 +168,7 @@ export default function ProfileScreen() {
             <View style={styles.statDivider} />
             <Stat icon="check-circle" color={colors.success} value={`${profile.accuracyRate}%`} label="정답률" colors={colors} fs={fontScale} />
             <View style={styles.statDivider} />
-            <Stat icon="local-fire-department" color={colors.streak} value={`${profile.streakDays}일`} label="연속 학습" colors={colors} fs={fontScale} />
+            <Stat icon="local-fire-department" color={colors.streak} value={`${streakDays}일`} label="연속 학습" colors={colors} fs={fontScale} />
             <View style={styles.statDivider} />
             <Stat icon="stars" color={colors.warning} value={profile.xp.toLocaleString()} label="획득 XP" colors={colors} fs={fontScale} />
           </View>

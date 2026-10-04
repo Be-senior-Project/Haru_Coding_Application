@@ -1,9 +1,10 @@
 import React, {useCallback, useMemo, useState} from 'react';
 import {View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {useNavigation, useFocusEffect} from '@react-navigation/native';
+import {useNavigation, useFocusEffect, type CompositeNavigationProp} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import type {RootStackParamList} from '../navigation/AppNavigator';
+import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
+import type {RootStackParamList, TabParamList} from '../navigation/AppNavigator';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {difficultyLabel, difficultyColor, difficultySoft} from '../types/problem';
 import {useTheme, tierFromLevel, type Colors} from '../theme/ThemeContext';
@@ -14,6 +15,7 @@ import {problemApi} from '../api/problemApi';
 import {statsApi, type StatsData} from '../api/statsApi';
 import {userApi, type UserProfile} from '../api/userApi';
 import {topicApi, type Topic} from '../api/topicApi';
+import {effectiveDailyGoal} from '../utils/dailyGoal';
 
 type TopicTone = 'success' | 'info' | 'primary' | 'streak';
 
@@ -39,14 +41,16 @@ function topicTone(tone: TopicTone, c: Colors): {accent: string; tint: string} {
 }
 
 export default function HomeScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const [streak, setStreak] = useState(0);
+  // 탭 이동(학습 통계)과 스택 이동(문제 풀이 등)을 둘 다 쓴다.
+  const navigation = useNavigation<CompositeNavigationProp<
+    BottomTabNavigationProp<TabParamList, '홈'>,
+    NativeStackNavigationProp<RootStackParamList>
+  >>();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [rec, setRec] = useState<RecommendationResponse | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [stats, setStats] = useState<StatsData | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [todayCount, setTodayCount] = useState(0); // 오늘 푼 문제 수
   const insets = useSafeAreaInsets();
   const {colors, fontScale} = useTheme();
   const styles = useMemo(() => makeStyles(colors, fontScale), [colors, fontScale]);
@@ -59,13 +63,14 @@ export default function HomeScreen() {
   );
 
   const loadData = async () => {
-    const saved = await AsyncStorage.getItem('streak');
     const token = await AsyncStorage.getItem('accessToken');
-    const today = new Date().toISOString().split('T')[0];
-    const tc = await AsyncStorage.getItem(`solvedCount_${today}`);
-    setTodayCount(tc ? parseInt(tc, 10) : 0);
-    if (saved) {setStreak(parseInt(saved, 10));}
     setIsLoggedIn(!!token);
+    if (!token) {
+      // 로그아웃 직후 이전 계정의 숫자가 남아 보이지 않게 비운다.
+      setRec(null);
+      setStats(null);
+      setProfile(null);
+    }
     try {
       const list = await topicApi.list(); // 공개 API — 비로그인도 주제는 보여준다
       if (list?.length) {setTopics(list);}
@@ -95,7 +100,7 @@ export default function HomeScreen() {
     }
     setStarting(true);
     try {
-      const problems = await problemApi.startSet(profile?.dailyGoalCount ?? 3);
+      const problems = await problemApi.startSet(effectiveDailyGoal(profile?.dailyGoalCount));
       if (!problems || problems.length === 0) {
         Alert.alert('준비 중', '문제를 준비하지 못했어요. 잠시 후 다시 시도해주세요.');
         return;
@@ -112,11 +117,12 @@ export default function HomeScreen() {
     }
   };
 
-  // 표시값: 실제 데이터 우선, 없으면 목업 숫자로 폴백
-  const displayStreak = stats?.currentStreak ?? (streak || 7);
-  const solvedCount = stats?.totalSolved ?? 42;
-  const accuracy = stats?.accuracyRate ?? 68;
-  const tier = tierFromLevel(profile?.level ?? 1); // 백엔드에 티어 필드가 없어 level에서 파생
+  // 표시값: 서버에서 받은 실제 값만 쓴다. 비로그인이거나 불러오지 못했으면 '-'.
+  // (예전엔 7일·42문제·68% 같은 목업 숫자로 채워서 처음 쓰는 사람에게 가짜 기록이 보였다)
+  const displayStreak = stats ? `${stats.currentStreak}일` : '-';
+  const solvedCount = stats ? String(stats.totalSolved) : '-';
+  const accuracy = stats ? `${Math.round(stats.accuracyRate)}%` : '-';
+  const tier = profile ? tierFromLevel(profile.level) : null; // 백엔드에 티어 필드가 없어 level에서 파생
 
   // 추천 1순위 문제 (/api/recommendations)
   const topRec = rec?.recommendations?.[0] ?? null;
@@ -138,8 +144,11 @@ export default function HomeScreen() {
     });
   }, [topics, stats]);
 
-  // 오늘의 목표(문제 갯수 기준): 하루 목표 문제 수 대비 "오늘" 푼 문제 수 (마이페이지에서 조절, MY-018)
-  const dailyGoal = profile?.dailyGoalCount ?? 3;
+  // 오늘의 목표(문제 갯수 기준): 하루 목표 문제 수 대비 "오늘" 푼 문제 수 (마이페이지에서 조절, MY-018, 최소 4)
+  const dailyGoal = effectiveDailyGoal(profile?.dailyGoalCount);
+  // 서버 weeklyActivity는 월~일 순서의 날짜별 풀이 수다. JS getDay()는 일=0이라 월=0으로 맞춘다.
+  // (예전엔 아무도 쓰지 않는 로컬 저장값 solvedCount_날짜를 읽어서 항상 0이었다)
+  const todayCount = stats?.weeklyActivity?.[(new Date().getDay() + 6) % 7] ?? 0;
   const goalSolved = Math.min(todayCount, dailyGoal);
   const goalPct = Math.round((goalSolved / dailyGoal) * 100);
 
@@ -164,18 +173,21 @@ export default function HomeScreen() {
       <View style={styles.goalCard}>
         <View style={styles.goalTopRow}>
           <Text style={styles.goalLabel}>오늘의 목표</Text>
-          <View style={styles.streakChip}>
-            <MaterialCommunityIcons name="fire" size={14} color={colors.streak} />
-            <Text style={styles.streakChipText}>{displayStreak}일 연속</Text>
-          </View>
+          {stats && (
+            <View style={styles.streakChip}>
+              <MaterialCommunityIcons name="fire" size={14} color={colors.streak} />
+              <Text style={styles.streakChipText}>{stats.currentStreak}일 연속</Text>
+            </View>
+          )}
         </View>
         <View style={styles.goalMidRow}>
           <View style={styles.goalValueRow}>
-            <Text style={styles.goalValue}>{goalSolved}</Text>
+            {/* 목표보다 더 풀었으면 실제로 푼 수를 그대로 보여준다(6 / 4). 진행 막대만 100%에서 멈춘다. */}
+            <Text style={styles.goalValue}>{todayCount}</Text>
             <Text style={styles.goalUnit}> / {dailyGoal}문제</Text>
           </View>
           <Text style={styles.goalDone}>
-            {goalPct >= 100 ? '목표 달성! 🎉' : `${dailyGoal - goalSolved}문제 남음`}
+            {goalPct >= 100 ? '목표 달성!' : `${dailyGoal - goalSolved}문제 남음`}
           </Text>
         </View>
         <View style={styles.goalBarTrack}>
@@ -229,19 +241,19 @@ export default function HomeScreen() {
       {/* 나의 실력 */}
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>나의 실력</Text>
-        <TouchableOpacity style={styles.moreBtn} onPress={() => Alert.alert('전체 통계', '학습 통계 탭에서 확인하세요!')}>
+        <TouchableOpacity style={styles.moreBtn} onPress={() => navigation.navigate('학습 통계')}>
           <Text style={styles.moreText}>전체 통계</Text>
           <MaterialIcons name="chevron-right" size={18} color={colors.subText} />
         </TouchableOpacity>
       </View>
       <View style={styles.statsCard}>
-        <Stat icon="event-available" iconColor={colors.success} value={`${displayStreak}일`} label="연속 도전" colors={colors} fs={fontScale} />
+        <Stat icon="event-available" iconColor={colors.success} value={displayStreak} label="연속 도전" colors={colors} fs={fontScale} />
         <View style={styles.statDivider} />
-        <Stat icon="bar-chart" iconColor={colors.info} value={String(solvedCount)} label="문제 해결" colors={colors} fs={fontScale} />
+        <Stat icon="bar-chart" iconColor={colors.info} value={solvedCount} label="문제 해결" colors={colors} fs={fontScale} />
         <View style={styles.statDivider} />
-        <Stat icon="military-tech" iconColor={tier.color} value={tier.label} label="현재 티어" colors={colors} fs={fontScale} />
+        <Stat icon="military-tech" iconColor={tier?.color ?? colors.subText} value={tier?.label ?? '-'} label="현재 티어" colors={colors} fs={fontScale} />
         <View style={styles.statDivider} />
-        <Stat icon="pie-chart" iconColor={colors.primary} value={`${accuracy}%`} label="정답률" colors={colors} fs={fontScale} />
+        <Stat icon="pie-chart" iconColor={colors.primary} value={accuracy} label="정답률" colors={colors} fs={fontScale} />
       </View>
 
       {/* 추천 학습 주제 */}

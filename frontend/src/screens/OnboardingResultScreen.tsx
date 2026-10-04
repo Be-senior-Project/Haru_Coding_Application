@@ -16,7 +16,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import type {RootStackParamList} from '../navigation/AppNavigator';
-import {signup as signupApi, login as loginApi} from '../api/authApi';
+import {signup as signupApi} from '../api/authApi';
 import {userApi} from '../api/userApi';
 
 // 난이도 → 테마 토큰. 색 값은 ThemeContext 한 곳에서만 관리한다.
@@ -65,8 +65,9 @@ export default function OnboardingResultScreen() {
     if (submitting) {return;}
     setSubmitting(true);
     try {
-      await signupApi(signup.email, signup.password, signup.nickname, signup.password);
-      const {accessToken, refreshToken} = await loginApi(signup.email, signup.password);
+      // 가입 응답에 토큰이 같이 오므로 로그인을 따로 부르지 않는다.
+      const {accessToken, refreshToken} =
+        await signupApi(signup.email, signup.password, signup.nickname, signup.password);
       await AsyncStorage.multiSet([
         ['accessToken', accessToken],
         ['refreshToken', refreshToken],

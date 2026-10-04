@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from 'react';
+import React, {useMemo, useRef, useState} from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,8 @@ import {GoogleSignin, statusCodes} from '@react-native-google-signin/google-sign
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import type {RootStackParamList} from '../navigation/AppNavigator';
-import {login, googleLogin} from '../api/authApi';
+import {login, googleLogin, AuthApiError} from '../api/authApi';
+import {validateEmail} from '../utils/authValidation';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 // TODO: 백엔드 연동 시 실제 클라이언트 ID로 교체
@@ -38,6 +39,10 @@ export default function LoginScreen() {
   const [showPw, setShowPw] = useState(false);
   const [keepLoggedIn, setKeepLoggedIn] = useState(true);
   const [loading, setLoading] = useState(false);
+  // 알림창 대신 입력칸 바로 아래에 보여준다. 입력을 고치면 지운다.
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const passwordRef = useRef<TextInput>(null);
 
   const saveTokensAndGoHome = async (accessToken: string, refreshToken: string) => {
     await AsyncStorage.multiSet([
@@ -48,16 +53,28 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
-    if (!email.trim() || !password) {
-      Alert.alert('입력 오류', '이메일과 비밀번호를 입력해주세요.');
+    const emailErr = validateEmail(email);
+    setEmailError(emailErr);
+    if (emailErr) {
+      setFormError(null);
       return;
     }
+    if (!password) {
+      setFormError('비밀번호를 입력해주세요.');
+      passwordRef.current?.focus();
+      return;
+    }
+    setFormError(null);
     setLoading(true);
     try {
       const {accessToken, refreshToken} = await login(email.trim(), password);
       await saveTokensAndGoHome(accessToken, refreshToken);
     } catch (e: any) {
-      Alert.alert('로그인 실패', e.message || '이메일 또는 비밀번호를 확인해주세요.');
+      setFormError(
+        e instanceof AuthApiError
+          ? e.message
+          : '서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.',
+      );
     } finally {
       setLoading(false);
     }
@@ -95,33 +112,58 @@ export default function LoginScreen() {
         <Text style={styles.tagline}>매일 30분, 코딩 실력을 성장시키세요</Text>
 
         <View style={styles.form}>
-          <View style={styles.inputRow}>
-            <MaterialIcons name="mail-outline" size={20} color={colors.subText} style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="이메일"
-              placeholderTextColor={colors.subText}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+          <View>
+            <View style={[styles.inputRow, emailError && styles.inputRowError]}>
+              <MaterialIcons name="mail-outline" size={20} color={colors.subText} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="이메일"
+                placeholderTextColor={colors.subText}
+                value={email}
+                onChangeText={v => {
+                  setEmail(v);
+                  setEmailError(null);
+                  setFormError(null);
+                }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                textContentType="emailAddress"
+                returnKeyType="next"
+                onSubmitEditing={() => passwordRef.current?.focus()}
+                blurOnSubmit={false}
+              />
+            </View>
+            {emailError && <ErrorText text={emailError} styles={styles} color={colors.danger} />}
           </View>
 
-          <View style={styles.inputRow}>
-            <MaterialIcons name="lock-outline" size={20} color={colors.subText} style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="비밀번호"
-              placeholderTextColor={colors.subText}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPw}
-            />
-            <TouchableOpacity onPress={() => setShowPw(v => !v)} hitSlop={8}>
-              <MaterialIcons name={showPw ? 'visibility' : 'visibility-off'} size={20} color={colors.subText} />
-            </TouchableOpacity>
+          <View>
+            <View style={[styles.inputRow, formError && styles.inputRowError]}>
+              <MaterialIcons name="lock-outline" size={20} color={colors.subText} style={styles.inputIcon} />
+              <TextInput
+                ref={passwordRef}
+                style={styles.input}
+                placeholder="비밀번호"
+                placeholderTextColor={colors.subText}
+                value={password}
+                onChangeText={v => {
+                  setPassword(v);
+                  setFormError(null);
+                }}
+                secureTextEntry={!showPw}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="password"
+                textContentType="password"
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
+              />
+              <TouchableOpacity onPress={() => setShowPw(v => !v)} hitSlop={8}>
+                <MaterialIcons name={showPw ? 'visibility' : 'visibility-off'} size={20} color={colors.subText} />
+              </TouchableOpacity>
+            </View>
+            {formError && <ErrorText text={formError} styles={styles} color={colors.danger} />}
           </View>
 
           <TouchableOpacity style={styles.keepRow} onPress={() => setKeepLoggedIn(v => !v)} activeOpacity={0.7}>
@@ -173,6 +215,15 @@ export default function LoginScreen() {
   );
 }
 
+function ErrorText({text, styles, color}: {text: string; styles: ReturnType<typeof makeStyles>; color: string}) {
+  return (
+    <View style={styles.errorRow}>
+      <MaterialIcons name="error-outline" size={14} color={color} />
+      <Text style={[styles.errorText, {color}]}>{text}</Text>
+    </View>
+  );
+}
+
 function makeStyles(c: Colors, fs: number) {
   return StyleSheet.create({
     container: {flex: 1, backgroundColor: c.bg},
@@ -191,8 +242,11 @@ function makeStyles(c: Colors, fs: number) {
       backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12,
       paddingHorizontal: 14,
     },
+    inputRowError: {borderColor: c.danger},
     inputIcon: {marginRight: 10},
     input: {flex: 1, paddingVertical: 14, fontSize: 15 * fs, color: c.text},
+    errorRow: {flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 4, marginTop: 6},
+    errorText: {flex: 1, fontSize: 12 * fs},
 
     keepRow: {flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2},
     keepText: {fontSize: 13 * fs, color: c.subText},
