@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Service
@@ -20,6 +21,7 @@ import java.util.List;
 public class LeagueService {
 
     private static final int CURRENT_SEASON = 1;
+    private static final int GROUP_SIZE = 10;
 
     private final UserLeagueRepository leagueRepository;
     private final UserRepository userRepository;
@@ -33,13 +35,18 @@ public class LeagueService {
                 .orElseGet(() -> assignLeague(user));
         myLeague.syncScore(user.getXp());
 
-        List<UserLeague> allInTier = leagueRepository
-                .findByTierAndSeasonOrderByScoreDesc(myLeague.getTier(), CURRENT_SEASON);
+        if (myLeague.getGroupId() == null) {
+            assignGroup(myLeague);
+        }
+
+        List<UserLeague> groupMembers = myLeague.getGroupId() != null
+                ? leagueRepository.findByTierAndSeasonAndGroupId(myLeague.getTier(), CURRENT_SEASON, myLeague.getGroupId())
+                : leagueRepository.findByTierAndSeasonOrderByScoreDesc(myLeague.getTier(), CURRENT_SEASON);
 
         List<LeagueResponse.LeagueMember> members = new ArrayList<>();
         int myRank = 0;
-        for (int i = 0; i < allInTier.size(); i++) {
-            UserLeague l = allInTier.get(i);
+        for (int i = 0; i < groupMembers.size(); i++) {
+            UserLeague l = groupMembers.get(i);
             int rank = i + 1;
             boolean isMe = l.getUser().getId().equals(userId);
             if (isMe) myRank = rank;
@@ -67,6 +74,17 @@ public class LeagueService {
     public void addScore(Long userId, int xpEarned) {
         leagueRepository.findByUserIdAndSeason(userId, CURRENT_SEASON)
                 .ifPresent(league -> league.addScore(xpEarned));
+    }
+
+    private void assignGroup(UserLeague league) {
+        List<UserLeague> unassigned = leagueRepository.findUnassigned(league.getTier(), CURRENT_SEASON);
+        if (unassigned.size() >= GROUP_SIZE) {
+            Collections.shuffle(unassigned);
+            int newGroupId = leagueRepository.findMaxGroupId(league.getTier(), CURRENT_SEASON) + 1;
+            for (int i = 0; i < GROUP_SIZE; i++) {
+                unassigned.get(i).assignGroup(newGroupId);
+            }
+        }
     }
 
     private UserLeague assignLeague(User user) {
