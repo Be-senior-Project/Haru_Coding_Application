@@ -4,39 +4,7 @@ import {useFocusEffect} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {useTheme, tierColor, TIER_KO, type Colors} from '../theme/ThemeContext';
-import {leagueApi, type LeagueData, type LeagueMember} from '../api/leagueApi';
-
-const MAX_RANK = 10;
-
-const MOCK_NAMES = [
-  '코딩왕김철수', '알고리즘마스터', '파이썬초보', '자바장인', '디버깅요정',
-  '반복문달인', '재귀러버', '스택오버플로', '큐마스터',
-];
-
-function withMockMembers(data: LeagueData): LeagueData {
-  const realCount = data.members.length;
-  const needMock = Math.max(0, MAX_RANK - realCount);
-  const mocks: LeagueMember[] = MOCK_NAMES.slice(0, needMock).map((name, i) => ({
-    userId: -(i + 1),
-    nickname: name,
-    tier: data.myTier,
-    score: Math.floor(Math.random() * 60) + 5,
-    rank: 0,
-    isMe: false,
-  }));
-
-  const all = [...data.members, ...mocks]
-    .sort((a, b) => b.score - a.score)
-    .slice(0, MAX_RANK)
-    .map((m, i) => ({...m, rank: i + 1}));
-
-  const me = all.find(m => m.isMe);
-  return {
-    ...data,
-    myRank: me?.rank ?? data.myRank,
-    members: all,
-  };
-}
+import {leagueApi, type LeagueData} from '../api/leagueApi';
 
 export default function LeagueScreen() {
   const insets = useSafeAreaInsets();
@@ -52,8 +20,7 @@ export default function LeagueScreen() {
     if (!silent) {setLoading(true);}
     setError(false);
     try {
-      const raw = await leagueApi.getMyLeague();
-      setData(withMockMembers(raw));
+      setData(await leagueApi.getMyLeague());
     } catch {
       setError(true);
     } finally {
@@ -89,13 +56,16 @@ export default function LeagueScreen() {
   const tc = tierColor(data.myTier);
   const tierLabel = TIER_KO[data.myTier] ?? data.myTier;
 
+  // 상위 3명과 내 근처 사이에 생략이 있는지 확인
+  const hasGap = data.members.length > 1 &&
+    data.members.some((m, i) => i > 0 && m.rank - data.members[i - 1].rank > 1);
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, {paddingTop: insets.top + 8}]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}>
 
-      {/* 헤더 */}
       <Text style={styles.headerTitle}>리그</Text>
 
       {/* 내 티어 카드 */}
@@ -117,7 +87,7 @@ export default function LeagueScreen() {
           </View>
           <View style={[styles.myStatDivider, {backgroundColor: colors.border}]} />
           <View style={styles.myStatItem}>
-            <Text style={styles.myStatValue}>{data.members.length}명</Text>
+            <Text style={styles.myStatValue}>{data.totalMembers}명</Text>
             <Text style={styles.myStatLabel}>참가자</Text>
           </View>
         </View>
@@ -126,32 +96,35 @@ export default function LeagueScreen() {
       {/* 랭킹 리스트 */}
       <Text style={styles.sectionTitle}>랭킹</Text>
       <View style={styles.rankList}>
-        {data.members.map(m => {
+        {data.members.map((m, i) => {
           const isTop3 = m.rank <= 3;
           const medalColor = m.rank === 1 ? '#F5B301' : m.rank === 2 ? '#9AA5B1' : m.rank === 3 ? '#B08D57' : colors.subText;
+          const showGap = i > 0 && m.rank - data.members[i - 1].rank > 1;
           return (
-            <View
-              key={m.userId}
-              style={[styles.rankItem, m.isMe && styles.rankItemMe]}>
-              {/* 순위 */}
-              <View style={styles.rankNumBox}>
-                {isTop3 ? (
-                  <MaterialIcons name="emoji-events" size={22} color={medalColor} />
-                ) : (
-                  <Text style={styles.rankNum}>{m.rank}</Text>
-                )}
-              </View>
-              {/* 닉네임 */}
-              <View style={styles.rankInfo}>
-                <Text style={[styles.rankName, m.isMe && styles.rankNameMe]} numberOfLines={1}>
-                  {m.nickname}{m.isMe ? ' (나)' : ''}
+            <React.Fragment key={m.userId}>
+              {showGap && (
+                <View style={styles.gapRow}>
+                  <Text style={styles.gapText}>···</Text>
+                </View>
+              )}
+              <View style={[styles.rankItem, m.isMe && styles.rankItemMe]}>
+                <View style={styles.rankNumBox}>
+                  {isTop3 ? (
+                    <MaterialIcons name="emoji-events" size={22} color={medalColor} />
+                  ) : (
+                    <Text style={styles.rankNum}>{m.rank}</Text>
+                  )}
+                </View>
+                <View style={styles.rankInfo}>
+                  <Text style={[styles.rankName, m.isMe && styles.rankNameMe]} numberOfLines={1}>
+                    {m.nickname}{m.isMe ? ' (나)' : ''}
+                  </Text>
+                </View>
+                <Text style={[styles.rankScore, m.isMe && styles.rankScoreMe]}>
+                  {m.score} XP
                 </Text>
               </View>
-              {/* 점수 */}
-              <Text style={[styles.rankScore, m.isMe && styles.rankScoreMe]}>
-                {m.score} XP
-              </Text>
-            </View>
+            </React.Fragment>
           );
         })}
         {data.members.length === 0 && (
@@ -208,5 +181,7 @@ function makeStyles(c: Colors, fs: number) {
     rankScore: {fontSize: 14 * fs, fontWeight: '700', color: c.subText},
     rankScoreMe: {color: c.primary},
     emptyRank: {padding: 24, textAlign: 'center', fontSize: 14 * fs, color: c.subText},
+    gapRow: {alignItems: 'center', paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: c.border},
+    gapText: {fontSize: 16 * fs, color: c.subText, letterSpacing: 4},
   });
 }

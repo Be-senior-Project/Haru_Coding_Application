@@ -34,23 +34,15 @@ public class UserLeague {
     @Column(nullable = false)
     private int season;
 
-    @Column(name = "group_id")
-    private Integer groupId;
-
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
     @Builder
-    public UserLeague(User user, LeagueTier tier, int score, int season, Integer groupId) {
+    public UserLeague(User user, LeagueTier tier, int score, int season) {
         this.user = user;
         this.tier = tier != null ? tier : LeagueTier.BRONZE;
         this.score = score;
         this.season = season;
-        this.groupId = groupId;
-    }
-
-    public void assignGroup(int groupId) {
-        this.groupId = groupId;
     }
 
     public void addScore(int amount) {

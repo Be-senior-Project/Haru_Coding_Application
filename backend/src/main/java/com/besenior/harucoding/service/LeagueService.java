@@ -13,15 +13,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class LeagueService {
 
     private static final int CURRENT_SEASON = 1;
-    private static final int GROUP_SIZE = 10;
+    private static final int DISPLAY_SIZE = 10;
 
     private final UserLeagueRepository leagueRepository;
     private final UserRepository userRepository;
@@ -35,21 +36,52 @@ public class LeagueService {
                 .orElseGet(() -> assignLeague(user));
         myLeague.syncScore(user.getXp());
 
-        if (myLeague.getGroupId() == null) {
-            assignGroup(myLeague);
+        List<UserLeague> allInTier = leagueRepository
+                .findByTierAndSeasonOrderByScoreDesc(myLeague.getTier(), CURRENT_SEASON);
+
+        int myRank = 0;
+        int myIdx = -1;
+        for (int i = 0; i < allInTier.size(); i++) {
+            if (allInTier.get(i).getUser().getId().equals(userId)) {
+                myRank = i + 1;
+                myIdx = i;
+                break;
+            }
         }
 
-        List<UserLeague> groupMembers = myLeague.getGroupId() != null
-                ? leagueRepository.findByTierAndSeasonAndGroupId(myLeague.getTier(), CURRENT_SEASON, myLeague.getGroupId())
-                : leagueRepository.findByTierAndSeasonOrderByScoreDesc(myLeague.getTier(), CURRENT_SEASON);
+        // 상위 3명 + 내 순위 근처를 합쳐서 최대 DISPLAY_SIZE명
+        Map<Integer, UserLeague> picked = new LinkedHashMap<>();
+
+        // 상위 3명
+        for (int i = 0; i < Math.min(3, allInTier.size()); i++) {
+            picked.put(i, allInTier.get(i));
+        }
+
+        // 내 순위 근처: 남은 슬롯만큼 위아래로 확장
+        if (myIdx >= 0) {
+            int remaining = DISPLAY_SIZE - picked.size();
+            int above = myIdx - remaining / 2;
+            int below = myIdx + remaining / 2;
+
+            if (above < 0) {
+                below = Math.min(below - above, allInTier.size() - 1);
+                above = 0;
+            }
+            if (below >= allInTier.size()) {
+                above = Math.max(above - (below - allInTier.size() + 1), 0);
+                below = allInTier.size() - 1;
+            }
+
+            for (int i = above; i <= below; i++) {
+                picked.putIfAbsent(i, allInTier.get(i));
+            }
+        }
 
         List<LeagueResponse.LeagueMember> members = new ArrayList<>();
-        int myRank = 0;
-        for (int i = 0; i < groupMembers.size(); i++) {
-            UserLeague l = groupMembers.get(i);
-            int rank = i + 1;
+        for (Map.Entry<Integer, UserLeague> entry : picked.entrySet()) {
+            int rank = entry.getKey() + 1;
+            UserLeague l = entry.getValue();
             boolean isMe = l.getUser().getId().equals(userId);
-            if (isMe) myRank = rank;
             members.add(LeagueResponse.LeagueMember.builder()
                     .userId(l.getUser().getId())
                     .nickname(l.getUser().getNickname())
@@ -65,26 +97,15 @@ public class LeagueService {
                 .myRank(myRank)
                 .myScore(myLeague.getScore())
                 .season(CURRENT_SEASON)
+                .totalMembers(allInTier.size())
                 .members(members)
                 .build();
     }
 
-    /** 문제 풀이 시 리그 점수 갱신 */
     @Transactional
     public void addScore(Long userId, int xpEarned) {
         leagueRepository.findByUserIdAndSeason(userId, CURRENT_SEASON)
                 .ifPresent(league -> league.addScore(xpEarned));
-    }
-
-    private void assignGroup(UserLeague league) {
-        List<UserLeague> unassigned = leagueRepository.findUnassigned(league.getTier(), CURRENT_SEASON);
-        if (unassigned.size() >= GROUP_SIZE) {
-            Collections.shuffle(unassigned);
-            int newGroupId = leagueRepository.findMaxGroupId(league.getTier(), CURRENT_SEASON) + 1;
-            for (int i = 0; i < GROUP_SIZE; i++) {
-                unassigned.get(i).assignGroup(newGroupId);
-            }
-        }
     }
 
     private UserLeague assignLeague(User user) {

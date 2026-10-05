@@ -13,6 +13,7 @@ public class LeagueResponse {
     private int myRank;
     private int myScore;
     private int season;
+    private int totalMembers;
     private List<LeagueMember> members;
 
     @Getter

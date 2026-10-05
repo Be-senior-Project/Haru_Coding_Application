@@ -14,6 +14,7 @@ export interface LeagueData {
   myRank: number;
   myScore: number;
   season: number;
+  totalMembers: number;
   members: LeagueMember[];
 }
 
