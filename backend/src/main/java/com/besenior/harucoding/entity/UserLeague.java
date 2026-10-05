@@ -48,4 +48,10 @@ public class UserLeague {
     public void addScore(int amount) {
         this.score += amount;
     }
+
+    public void syncScore(int userXp) {
+        if (this.score == 0 && userXp > 0) {
+            this.score = userXp;
+        }
+    }
 }

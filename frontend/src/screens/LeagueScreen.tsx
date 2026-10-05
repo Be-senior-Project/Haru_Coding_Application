@@ -4,7 +4,39 @@ import {useFocusEffect} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {useTheme, tierColor, TIER_KO, type Colors} from '../theme/ThemeContext';
-import {leagueApi, type LeagueData} from '../api/leagueApi';
+import {leagueApi, type LeagueData, type LeagueMember} from '../api/leagueApi';
+
+const MAX_RANK = 10;
+
+const MOCK_NAMES = [
+  '코딩왕김철수', '알고리즘마스터', '파이썬초보', '자바장인', '디버깅요정',
+  '반복문달인', '재귀러버', '스택오버플로', '큐마스터',
+];
+
+function withMockMembers(data: LeagueData): LeagueData {
+  const realCount = data.members.length;
+  const needMock = Math.max(0, MAX_RANK - realCount);
+  const mocks: LeagueMember[] = MOCK_NAMES.slice(0, needMock).map((name, i) => ({
+    userId: -(i + 1),
+    nickname: name,
+    tier: data.myTier,
+    score: Math.floor(Math.random() * 60) + 5,
+    rank: 0,
+    isMe: false,
+  }));
+
+  const all = [...data.members, ...mocks]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_RANK)
+    .map((m, i) => ({...m, rank: i + 1}));
+
+  const me = all.find(m => m.isMe);
+  return {
+    ...data,
+    myRank: me?.rank ?? data.myRank,
+    members: all,
+  };
+}
 
 export default function LeagueScreen() {
   const insets = useSafeAreaInsets();
@@ -20,7 +52,8 @@ export default function LeagueScreen() {
     if (!silent) {setLoading(true);}
     setError(false);
     try {
-      setData(await leagueApi.getMyLeague());
+      const raw = await leagueApi.getMyLeague();
+      setData(withMockMembers(raw));
     } catch {
       setError(true);
     } finally {

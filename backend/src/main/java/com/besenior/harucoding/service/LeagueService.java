@@ -31,6 +31,7 @@ public class LeagueService {
 
         UserLeague myLeague = leagueRepository.findByUserIdAndSeason(userId, CURRENT_SEASON)
                 .orElseGet(() -> assignLeague(user));
+        myLeague.syncScore(user.getXp());
 
         List<UserLeague> allInTier = leagueRepository
                 .findByTierAndSeasonOrderByScoreDesc(myLeague.getTier(), CURRENT_SEASON);
@@ -73,7 +74,7 @@ public class LeagueService {
         UserLeague league = UserLeague.builder()
                 .user(user)
                 .tier(tier)
-                .score(0)
+                .score(user.getXp())
                 .season(CURRENT_SEASON)
                 .build();
         return leagueRepository.save(league);
