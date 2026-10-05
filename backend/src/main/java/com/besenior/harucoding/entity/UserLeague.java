@@ -44,4 +44,8 @@ public class UserLeague {
         this.score = score;
         this.season = season;
     }
+
+    public void addScore(int amount) {
+        this.score += amount;
+    }
 }

@@ -40,6 +40,7 @@ public class ProblemService {
     private final TopicRepository topicRepository;
     private final ObjectMapper objectMapper;
     private final CodeVerifier codeVerifier;
+    private final LeagueService leagueService;
 
     private static final int XP_PER_CORRECT = 10;
     private static final int XP_STREAK_BONUS = 5;
@@ -100,6 +101,7 @@ public class ProblemService {
             xpLogRepository.save(UserXpLog.builder()
                     .user(user).xpAmount(xpEarned).reason(XpReason.SOLVE_CORRECT).build());
             user.addXp(xpEarned);
+            leagueService.addScore(userId, xpEarned);
         }
 
         int currentStreak = getCurrentStreak(userId);
