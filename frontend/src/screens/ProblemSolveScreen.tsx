@@ -768,15 +768,15 @@ function makeStyles(c: Colors, fs: number) {
     // AI 힌트 모달
     modalOverlay: {
       flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
-      justifyContent: 'center', alignItems: 'center', padding: 24,
+      justifyContent: 'center', alignItems: 'center', padding: 20,
     },
     modalCard: {
-      backgroundColor: c.card, borderRadius: 20, width: '100%', maxHeight: '60%',
+      backgroundColor: c.card, borderRadius: 20, width: '100%', maxHeight: '80%',
       shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 20, shadowOffset: {width: 0, height: 8}, elevation: 8,
     },
     modalHeader: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
-      paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12,
+      paddingHorizontal: 20, paddingTop: 18, paddingBottom: 12,
       borderBottomWidth: 1, borderBottomColor: c.border,
     },
     modalTitle: {flex: 1, fontSize: 17 * fs, fontWeight: '800', color: c.text},
@@ -789,17 +789,17 @@ function makeStyles(c: Colors, fs: number) {
       paddingHorizontal: 20, paddingVertical: 10,
     },
     modalRetryText: {color: c.primary, fontSize: 14 * fs, fontWeight: '700'},
-    modalScroll: {padding: 20},
-    modalHintText: {fontSize: 15 * fs, color: c.text, lineHeight: 24 * fs, marginBottom: 8},
-    hintStepHeader: {flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10},
-    hintStepBadge: {borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3},
-    hintStepBadgeText: {fontSize: 12 * fs, fontWeight: '800'},
-    hintStepLabel: {fontSize: 13 * fs, fontWeight: '700', color: c.subText},
+    modalScroll: {paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24},
+    modalHintText: {fontSize: 14 * fs, color: c.text, lineHeight: 22 * fs, marginBottom: 4},
+    hintStepHeader: {flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8},
+    hintStepBadge: {borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2},
+    hintStepBadgeText: {fontSize: 11 * fs, fontWeight: '800'},
+    hintStepLabel: {fontSize: 12 * fs, fontWeight: '700', color: c.subText},
     moreHintBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
-      backgroundColor: c.primarySoft, borderRadius: 10, paddingVertical: 12, marginTop: 8,
+      backgroundColor: c.primarySoft, borderRadius: 10, paddingVertical: 10, marginTop: 10,
     },
-    moreHintText: {color: c.primary, fontSize: 14 * fs, fontWeight: '700'},
-    hintNextSection: {marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: c.border},
+    moreHintText: {color: c.primary, fontSize: 13 * fs, fontWeight: '700'},
+    hintNextSection: {marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.border},
   });
 }
