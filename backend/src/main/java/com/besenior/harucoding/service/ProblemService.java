@@ -61,6 +61,7 @@ public class ProblemService {
         return HintResponse.builder()
                 .hint1(p.getHint1())
                 .hint2(p.getHint2())
+                .hint3(p.getHint3())
                 .build();
     }
 

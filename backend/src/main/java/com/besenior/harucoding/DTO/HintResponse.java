@@ -8,4 +8,5 @@ import lombok.Getter;
 public class HintResponse {
     private String hint1;
     private String hint2;
+    private String hint3;
 }

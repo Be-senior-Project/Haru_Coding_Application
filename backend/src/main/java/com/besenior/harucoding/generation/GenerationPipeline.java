@@ -108,6 +108,7 @@ public class GenerationPipeline {
 
         String hint1 = p.hasNonNull("Hint1") ? p.get("Hint1").asText() : null;
         String hint2 = p.hasNonNull("Hint2") ? p.get("Hint2").asText() : null;
+        String hint3 = p.hasNonNull("Hint3") ? p.get("Hint3").asText() : null;
 
         return Problem.builder()
                 .setId(setId)
@@ -126,6 +127,7 @@ public class GenerationPipeline {
                 .conceptExplanation(concept)
                 .hint1(hint1)
                 .hint2(hint2)
+                .hint3(hint3)
                 .build();
     }
 

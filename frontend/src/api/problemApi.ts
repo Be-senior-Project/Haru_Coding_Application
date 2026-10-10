@@ -40,6 +40,7 @@ function buildQuery(params: Record<string, string | number | undefined>): string
 export interface HintResult {
   hint1: string | null;
   hint2: string | null;
+  hint3: string | null;
 }
 
 export const problemApi = {

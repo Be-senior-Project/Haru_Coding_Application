@@ -77,6 +77,7 @@ export default function ProblemSolveScreen() {
   const [hintLoading, setHintLoading] = useState(false);
   const [hint1, setHint1] = useState<string | null>(null);
   const [hint2, setHint2] = useState<string | null>(null);
+  const [hint3, setHint3] = useState<string | null>(null);
   const [hintStep, setHintStep] = useState(1);
   const [hintError, setHintError] = useState(false);
 
@@ -190,6 +191,7 @@ export default function ProblemSolveScreen() {
     setHintVisible(false);
     setHint1(null);
     setHint2(null);
+    setHint3(null);
     setHintStep(1);
     setHintError(false);
   }, [currentIndex, problem]);
@@ -288,6 +290,7 @@ export default function ProblemSolveScreen() {
       const res = await problemApi.hint(problem.id);
       setHint1(res.hint1);
       setHint2(res.hint2);
+      setHint3(res.hint3);
     } catch {
       setHintError(true);
     } finally {
@@ -572,15 +575,36 @@ export default function ProblemSolveScreen() {
                 </TouchableOpacity>
               ) : null}
 
-              {hintStep === 2 && hint2 ? (
-                <View style={styles.hint2Section}>
+              {hintStep >= 2 && hint2 ? (
+                <View style={styles.hintNextSection}>
                   <View style={styles.hintStepHeader}>
-                    <View style={[styles.hintStepBadge, {backgroundColor: colors.dangerSoft}]}>
-                      <Text style={[styles.hintStepBadgeText, {color: colors.danger}]}>2단계</Text>
+                    <View style={[styles.hintStepBadge, {backgroundColor: colors.infoSoft}]}>
+                      <Text style={[styles.hintStepBadgeText, {color: colors.info}]}>2단계</Text>
                     </View>
                     <Text style={styles.hintStepLabel}>구체적 힌트</Text>
                   </View>
                   <Text style={styles.modalHintText}>{hint2}</Text>
+                </View>
+              ) : null}
+
+              {hintStep === 2 && hint3 ? (
+                <TouchableOpacity
+                  style={styles.moreHintBtn}
+                  onPress={() => setHintStep(3)}>
+                  <MaterialIcons name="expand-more" size={18} color={colors.primary} />
+                  <Text style={styles.moreHintText}>코드 구조 힌트 보기</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              {hintStep >= 3 && hint3 ? (
+                <View style={styles.hintNextSection}>
+                  <View style={styles.hintStepHeader}>
+                    <View style={[styles.hintStepBadge, {backgroundColor: colors.dangerSoft}]}>
+                      <Text style={[styles.hintStepBadgeText, {color: colors.danger}]}>3단계</Text>
+                    </View>
+                    <Text style={styles.hintStepLabel}>코드 구조 힌트</Text>
+                  </View>
+                  <Text style={styles.modalHintText}>{hint3}</Text>
                 </View>
               ) : null}
             </ScrollView>
@@ -776,6 +800,6 @@ function makeStyles(c: Colors, fs: number) {
       backgroundColor: c.primarySoft, borderRadius: 10, paddingVertical: 12, marginTop: 8,
     },
     moreHintText: {color: c.primary, fontSize: 14 * fs, fontWeight: '700'},
-    hint2Section: {marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: c.border},
+    hintNextSection: {marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: c.border},
   });
 }

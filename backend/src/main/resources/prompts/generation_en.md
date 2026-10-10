@@ -56,6 +56,7 @@ The output has two parts: a `Set` object (shared metadata + concept) and a `Prob
       "Explanation": "Explanation of the solution strategy and time complexity. You must write it in Korean without fail.",
       "Hint1": "A gentle directional hint that does NOT reveal the answer. Guide the solver toward the right approach by mentioning which concept, data structure, or technique to consider. Write 1-2 sentences in Korean. Example: '이 문제는 특정 자료구조를 활용하면 효율적으로 풀 수 있어요. 어떤 자료구조가 삽입과 삭제를 빠르게 처리할 수 있는지 생각해보세요.'",
       "Hint2": "A more specific hint that narrows down the approach WITHOUT giving the exact code. Mention the specific algorithm step, edge case to watch, or key insight needed. Write 2-3 sentences in Korean. Example: '스택을 사용해서 값을 순서대로 처리해보세요. 현재 값이 스택의 top보다 클 때 어떤 동작을 해야 할지 생각해보세요. 반복문이 끝난 후 스택에 남아있는 원소들도 처리해야 해요.'",
+      "Hint3": "A code-structure hint tailored to the problem Type. See Hint3 rules below. Write 2-3 sentences in Korean.",
       "Language": "The requested LANGUAGE string"
     }
   ]
@@ -122,6 +123,15 @@ Additional rules:
 - **Hint2** (구체적 힌트): A more detailed hint that narrows down the approach. Mention the specific algorithm step, a key condition to check, or an edge case to watch out for. Still do NOT give the exact code or answer. Keep it to 2-3 sentences in Korean using polite tone.
 - The progression must feel natural: reading Hint1 alone should help a solver who is slightly stuck; reading Hint2 after Hint1 should help a solver who is more deeply stuck, without making the problem trivial.
 - Hints should reference the problem's specific context (variable names, constraints, etc.), not be generic advice.
+
+#### `Hint3` (Code-Structure Hint, per Type)
+- **Required** for every problem. Still NEVER reveal the exact answer code.
+- The hint describes the **code structure/flow** so the solver knows HOW to organize their code, but must write it themselves.
+- Rules differ by Type:
+  - **Implementation**: Describe the structure of the core logic as pseudo-code flow. Example: "for문으로 배열을 순회하면서 조건을 만족하는 값을 찾으면 바로 return하는 구조예요. 찾지 못하면 -1을 반환하세요."
+  - **Debugging**: Point to the area where the bug exists (e.g., which line or which part of the logic) and describe what kind of bug it is (off-by-one, wrong operator, missing condition, etc.), WITHOUT telling the fix. Example: "3번째 줄의 비교 연산자를 확인해보세요. 경계값이 포함되어야 하는지 생각해보세요."
+  - **Fill-in-the-blank**: For each blank, describe what KIND of code belongs there (loop condition, return value, function call, etc.) without giving the exact code. Example: "BLANK_1에는 반복 범위를 지정하는 코드가 들어가요. `range()`를 활용해보세요. BLANK_2에는 조건문이 들어가요."
+- Write 2-3 sentences in Korean using polite tone.
 
 ## Output Style
 1. Use short variable names (`arr`, `n`, `m`, `i`, `j`, `x`, `y`, `vis`, `res`, `tmp`, `q`, `stk`, etc.).
