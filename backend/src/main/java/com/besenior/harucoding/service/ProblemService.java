@@ -2,6 +2,7 @@ package com.besenior.harucoding.service;
 
 import com.besenior.harucoding.DTO.AttemptRequest;
 import com.besenior.harucoding.DTO.AttemptResultResponse;
+import com.besenior.harucoding.DTO.HintResponse;
 import com.besenior.harucoding.DTO.ProblemResponse;
 import com.besenior.harucoding.entity.*;
 import com.besenior.harucoding.global.enums.ProblemType;
@@ -51,6 +52,16 @@ public class ProblemService {
         Problem p = problemRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.PROBLEM_NOT_FOUND));
         return ProblemResponse.from(p, false); // 풀이 전: 정답 미포함
+    }
+
+    @Transactional(readOnly = true)
+    public HintResponse getHint(Long id) {
+        Problem p = problemRepository.findById(id)
+                .orElseThrow(() -> new CustomException(ErrorCode.PROBLEM_NOT_FOUND));
+        return HintResponse.builder()
+                .hint1(p.getHint1())
+                .hint2(p.getHint2())
+                .build();
     }
 
     @Transactional(readOnly = true)

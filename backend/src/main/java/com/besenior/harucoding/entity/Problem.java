@@ -73,6 +73,12 @@ public class Problem {
     @Column(name = "concept_explanation", columnDefinition = "TEXT")
     private String conceptExplanation;
 
+    @Column(columnDefinition = "TEXT")
+    private String hint1;
+
+    @Column(columnDefinition = "TEXT")
+    private String hint2;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -82,7 +88,7 @@ public class Problem {
                    int difficulty, String language, String title, String description,
                    List<String> constraints, Map<String, String> ioExample,
                    String codeSkeleton, Object answer, String explanation,
-                   String conceptExplanation) {
+                   String conceptExplanation, String hint1, String hint2) {
         this.setId = setId;
         this.type = type;
         this.category = category;
@@ -97,5 +103,7 @@ public class Problem {
         this.answer = answer;
         this.explanation = explanation;
         this.conceptExplanation = conceptExplanation;
+        this.hint1 = hint1;
+        this.hint2 = hint2;
     }
 }

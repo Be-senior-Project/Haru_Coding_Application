@@ -106,6 +106,9 @@ public class GenerationPipeline {
 
         String codeSkeleton = p.hasNonNull("Code Skeleton") ? p.get("Code Skeleton").asText() : null;
 
+        String hint1 = p.hasNonNull("Hint1") ? p.get("Hint1").asText() : null;
+        String hint2 = p.hasNonNull("Hint2") ? p.get("Hint2").asText() : null;
+
         return Problem.builder()
                 .setId(setId)
                 .type(mapType(p.path("Type").asText()))
@@ -121,6 +124,8 @@ public class GenerationPipeline {
                 .answer(answer)
                 .explanation(p.path("Explanation").asText(""))
                 .conceptExplanation(concept)
+                .hint1(hint1)
+                .hint2(hint2)
                 .build();
     }
 

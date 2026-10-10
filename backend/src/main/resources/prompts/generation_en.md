@@ -54,6 +54,8 @@ The output has two parts: a `Set` object (shared metadata + concept) and a `Prob
       "Code Skeleton": "See rules per Type below",
       "Answer": "See rules per Type below",
       "Explanation": "Explanation of the solution strategy and time complexity. You must write it in Korean without fail.",
+      "Hint1": "A gentle directional hint that does NOT reveal the answer. Guide the solver toward the right approach by mentioning which concept, data structure, or technique to consider. Write 1-2 sentences in Korean. Example: '이 문제는 특정 자료구조를 활용하면 효율적으로 풀 수 있어요. 어떤 자료구조가 삽입과 삭제를 빠르게 처리할 수 있는지 생각해보세요.'",
+      "Hint2": "A more specific hint that narrows down the approach WITHOUT giving the exact code. Mention the specific algorithm step, edge case to watch, or key insight needed. Write 2-3 sentences in Korean. Example: '스택을 사용해서 값을 순서대로 처리해보세요. 현재 값이 스택의 top보다 클 때 어떤 동작을 해야 할지 생각해보세요. 반복문이 끝난 후 스택에 남아있는 원소들도 처리해야 해요.'",
       "Language": "The requested LANGUAGE string"
     }
   ]
@@ -113,6 +115,13 @@ Additional rules:
 - For `Implementation`, the `{{CORE}}` placeholder appears **exactly once**, alone on its own line. `Answer` is a single string (may be multi-line).
 - For `Fill-in-the-blank`, placeholders must use **double curly braces** exactly: `{{BLANK_1}}`. Numbering starts at 1 and increases by 1. Blanks must target the **core algorithmic part** (and code right next to it), not trivial boilerplate.
 - For `Fill-in-the-blank`, `Answer` is the only field that is an array of strings. For `Implementation` and `Debugging`, `Answer` is a single string.
+
+#### `Hint1` and `Hint2` (Progressive Hints)
+- Both fields are **required** for every problem.
+- **Hint1** (방향 힌트): A gentle nudge pointing the solver in the right direction. Mention which concept, data structure, or technique is relevant. Do NOT reveal the algorithm steps or the answer. Keep it to 1-2 sentences in Korean using polite tone ("~해보세요", "~생각해보세요").
+- **Hint2** (구체적 힌트): A more detailed hint that narrows down the approach. Mention the specific algorithm step, a key condition to check, or an edge case to watch out for. Still do NOT give the exact code or answer. Keep it to 2-3 sentences in Korean using polite tone.
+- The progression must feel natural: reading Hint1 alone should help a solver who is slightly stuck; reading Hint2 after Hint1 should help a solver who is more deeply stuck, without making the problem trivial.
+- Hints should reference the problem's specific context (variable names, constraints, etc.), not be generic advice.
 
 ## Output Style
 1. Use short variable names (`arr`, `n`, `m`, `i`, `j`, `x`, `y`, `vis`, `res`, `tmp`, `q`, `stk`, etc.).

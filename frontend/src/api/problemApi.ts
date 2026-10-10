@@ -37,6 +37,11 @@ function buildQuery(params: Record<string, string | number | undefined>): string
   return qs ? `?${qs}` : '';
 }
 
+export interface HintResult {
+  hint1: string | null;
+  hint2: string | null;
+}
+
 export const problemApi = {
   // 문제 은행 목록 (공개)
   list: (params: ProblemListParams = {}) =>
@@ -65,4 +70,8 @@ export const problemApi = {
   // 세트 시작 (인증 필요) → 안 푼 DB 문제 우선, 없으면 즉석 생성. 문제 배열(정답 숨김) 반환
   startSet: (count = 3) =>
     api.post<Problem[]>(`/api/problems/start-set?count=${count}`, {}),
+
+  // AI 힌트 조회 (인증 필요)
+  hint: (id: number) =>
+    api.get<HintResult>(`/api/problems/${id}/hint`),
 };

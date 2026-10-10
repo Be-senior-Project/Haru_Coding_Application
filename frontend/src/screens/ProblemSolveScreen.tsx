@@ -1,7 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  TextInput, ScrollView, Alert, ActivityIndicator,
+  TextInput, ScrollView, Alert, ActivityIndicator, Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -71,6 +71,14 @@ export default function ProblemSolveScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [startedAt, setStartedAt] = useState(Date.now());
+
+  // AI 힌트
+  const [hintVisible, setHintVisible] = useState(false);
+  const [hintLoading, setHintLoading] = useState(false);
+  const [hint1, setHint1] = useState<string | null>(null);
+  const [hint2, setHint2] = useState<string | null>(null);
+  const [hintStep, setHintStep] = useState(1);
+  const [hintError, setHintError] = useState(false);
 
   // 코드 실행 (SOLVE-007) — 채점과 별개로 예시 입력 기준 결과만 즉시 보여준다
   const [running, setRunning] = useState(false);
@@ -179,6 +187,11 @@ export default function ProblemSolveScreen() {
     setResultExplain('');
     setStartedAt(Date.now());
     setRunResult(null);
+    setHintVisible(false);
+    setHint1(null);
+    setHint2(null);
+    setHintStep(1);
+    setHintError(false);
   }, [currentIndex, problem]);
 
   if (loading) {
@@ -258,6 +271,30 @@ export default function ProblemSolveScreen() {
     }
   };
 
+  const handleHint = async () => {
+    if (!isReal) {
+      Alert.alert('AI 힌트', '연습용 문제는 AI 힌트를 지원하지 않아요.');
+      return;
+    }
+    if (hint1 != null) {
+      setHintVisible(true);
+      return;
+    }
+    setHintVisible(true);
+    setHintLoading(true);
+    setHintError(false);
+    setHintStep(1);
+    try {
+      const res = await problemApi.hint(problem.id);
+      setHint1(res.hint1);
+      setHint2(res.hint2);
+    } catch {
+      setHintError(true);
+    } finally {
+      setHintLoading(false);
+    }
+  };
+
   const handleRunCode = async () => {
     if (!isReal) {
       Alert.alert('실행', '예시 문제는 코드 실행을 지원하지 않아요.');
@@ -308,6 +345,7 @@ export default function ProblemSolveScreen() {
   const correctAnswersForHint = Array.isArray(resultAnswer) ? resultAnswer : [];
 
   return (
+    <>
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, {paddingTop: insets.top + 16}]}>
@@ -421,7 +459,7 @@ export default function ProblemSolveScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.hintBtn}
-            onPress={() => Alert.alert('AI 힌트', '곧 제공될 기능이에요.')}>
+            onPress={handleHint}>
             <MaterialIcons name="lightbulb-outline" size={18} color={colors.primary} />
             <Text style={styles.hintBtnText}>AI 힌트</Text>
           </TouchableOpacity>
@@ -477,6 +515,80 @@ export default function ProblemSolveScreen() {
         </View>
       )}
     </ScrollView>
+
+    {/* AI 힌트 모달 */}
+    <Modal
+      visible={hintVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setHintVisible(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalCard}>
+          <View style={styles.modalHeader}>
+            <MaterialIcons name="lightbulb" size={22} color={colors.warning} />
+            <Text style={styles.modalTitle}>AI 힌트</Text>
+            <TouchableOpacity
+              style={styles.modalClose}
+              onPress={() => setHintVisible(false)}
+              hitSlop={8}>
+              <MaterialIcons name="close" size={20} color={colors.subText} />
+            </TouchableOpacity>
+          </View>
+          {hintLoading ? (
+            <View style={styles.modalBody}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.modalLoadingText}>힌트를 불러오고 있어요...</Text>
+            </View>
+          ) : hintError ? (
+            <View style={styles.modalBody}>
+              <Text style={styles.modalErrorText}>힌트를 가져오지 못했어요.</Text>
+              <TouchableOpacity
+                style={styles.modalRetryBtn}
+                onPress={() => { setHint1(null); handleHint(); }}>
+                <Text style={styles.modalRetryText}>다시 시도</Text>
+              </TouchableOpacity>
+            </View>
+          ) : !hint1 ? (
+            <View style={styles.modalBody}>
+              <MaterialIcons name="lightbulb-outline" size={40} color={colors.subText} />
+              <Text style={styles.modalErrorText}>이 문제는 힌트가 준비되지 않았어요.</Text>
+            </View>
+          ) : (
+            <ScrollView style={styles.modalScroll} bounces={false}>
+              <View style={styles.hintStepHeader}>
+                <View style={[styles.hintStepBadge, {backgroundColor: colors.warningSoft}]}>
+                  <Text style={[styles.hintStepBadgeText, {color: colors.warning}]}>1단계</Text>
+                </View>
+                <Text style={styles.hintStepLabel}>방향 힌트</Text>
+              </View>
+              <Text style={styles.modalHintText}>{hint1}</Text>
+
+              {hintStep === 1 && hint2 ? (
+                <TouchableOpacity
+                  style={styles.moreHintBtn}
+                  onPress={() => setHintStep(2)}>
+                  <MaterialIcons name="expand-more" size={18} color={colors.primary} />
+                  <Text style={styles.moreHintText}>더 자세한 힌트 보기</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              {hintStep === 2 && hint2 ? (
+                <View style={styles.hint2Section}>
+                  <View style={styles.hintStepHeader}>
+                    <View style={[styles.hintStepBadge, {backgroundColor: colors.dangerSoft}]}>
+                      <Text style={[styles.hintStepBadgeText, {color: colors.danger}]}>2단계</Text>
+                    </View>
+                    <Text style={styles.hintStepLabel}>구체적 힌트</Text>
+                  </View>
+                  <Text style={styles.modalHintText}>{hint2}</Text>
+                </View>
+              ) : null}
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -629,5 +741,41 @@ function makeStyles(c: Colors, fs: number) {
     },
     nextBtnText: {color: c.onPrimary, fontWeight: '700', fontSize: 15 * fs},
     errorText: {fontSize: 15 * fs, color: c.subText, marginBottom: 16, textAlign: 'center'},
+    // AI 힌트 모달
+    modalOverlay: {
+      flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+      justifyContent: 'center', alignItems: 'center', padding: 24,
+    },
+    modalCard: {
+      backgroundColor: c.card, borderRadius: 20, width: '100%', maxHeight: '60%',
+      shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 20, shadowOffset: {width: 0, height: 8}, elevation: 8,
+    },
+    modalHeader: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12,
+      borderBottomWidth: 1, borderBottomColor: c.border,
+    },
+    modalTitle: {flex: 1, fontSize: 17 * fs, fontWeight: '800', color: c.text},
+    modalClose: {padding: 4},
+    modalBody: {alignItems: 'center', justifyContent: 'center', paddingVertical: 40, gap: 12},
+    modalLoadingText: {fontSize: 14 * fs, color: c.subText},
+    modalErrorText: {fontSize: 14 * fs, color: c.danger, textAlign: 'center'},
+    modalRetryBtn: {
+      backgroundColor: c.primarySoft, borderRadius: 10,
+      paddingHorizontal: 20, paddingVertical: 10,
+    },
+    modalRetryText: {color: c.primary, fontSize: 14 * fs, fontWeight: '700'},
+    modalScroll: {padding: 20},
+    modalHintText: {fontSize: 15 * fs, color: c.text, lineHeight: 24 * fs, marginBottom: 8},
+    hintStepHeader: {flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10},
+    hintStepBadge: {borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3},
+    hintStepBadgeText: {fontSize: 12 * fs, fontWeight: '800'},
+    hintStepLabel: {fontSize: 13 * fs, fontWeight: '700', color: c.subText},
+    moreHintBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+      backgroundColor: c.primarySoft, borderRadius: 10, paddingVertical: 12, marginTop: 8,
+    },
+    moreHintText: {color: c.primary, fontSize: 14 * fs, fontWeight: '700'},
+    hint2Section: {marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: c.border},
   });
 }
