@@ -17,6 +17,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -30,6 +32,10 @@ public class StatsService {
     private final UserStreakLogRepository streakLogRepository;
     private final TopicRepository topicRepository;
 
+    /** 약점 기준: 정답률이 이 값(%) 미만이면서 이 수 이상 푼 영역. 학습 통계의 약점 안내와 약점 기반 문제 생성이 같이 쓴다. */
+    public static final double WEAK_ACCURACY_BELOW = 70.0;
+    public static final int WEAK_MIN_SOLVED = 3;
+
     @Transactional(readOnly = true)
     public StatsResponse getStats(Long userId, String period) {
         userRepository.findById(userId)
@@ -38,25 +44,26 @@ public class StatsService {
         LocalDateTime since = periodStart(period);
 
         List<UserProblemRecord> allRecords = recordRepository.findByUserIdOrderBySolvedAtDesc(userId);
-        List<UserProblemRecord> records = since == null ? allRecords
-                : allRecords.stream().filter(r -> !r.getSolvedAt().isBefore(since)).toList();
+        // 통계는 문제별 첫 제출 기록으로 센다. 같은 문제를 다시 제출해도 푼 문제 수·정답률이 부풀지 않게 하기 위함.
+        // 기간 탭은 그 문제를 처음 푼 날짜로 나눈다.
+        List<UserProblemRecord> firstAttempts = firstAttempts(allRecords);
+        List<UserProblemRecord> records = inPeriod(firstAttempts, since);
 
         long totalSolved  = records.size();
         long correctCount = records.stream().filter(UserProblemRecord::isCorrect).count();
-        double accuracy   = totalSolved == 0 ? 0.0
-                : Math.round((double) correctCount / totalSolved * 1000) / 10.0;
+        double accuracy   = rate(correctCount, totalSolved);
 
         // 현재 스트릭 (기간과 무관하게 연속 학습일은 항상 전체 기준)
         int currentStreak = getCurrentStreak(userId);
 
-        // 주간 활동 (이번 주 월~일) — 탭과 무관하게 항상 최근 7일 위젯
-        List<Integer> weeklyActivity = getWeeklyActivity(userId);
+        // 이번 주(월~일) 날짜별 처음 푼 문제 수. 탭과 무관하게 같은 그래프
+        List<Integer> weeklyActivity = getWeeklyActivity(firstAttempts);
 
-        // 카테고리별 통계 (선택된 기간의 풀이 기록으로 재집계)
+        // 카테고리별 통계 (선택된 기간에 처음 푼 문제로 재집계)
         List<StatsResponse.CategoryStat> categoryStats = buildCategoryStats(records);
 
-        // 최근 풀이 5개 (선택된 기간 내)
-        List<StatsResponse.RecentRecord> recentRecords = records.stream()
+        // 최근 풀이 5개 (선택된 기간 내 실제 제출. 다시 푼 것도 포함)
+        List<StatsResponse.RecentRecord> recentRecords = inPeriod(allRecords, since).stream()
                 .limit(5)
                 .map(r -> StatsResponse.RecentRecord.builder()
                         .problemId(r.getProblem().getId())
@@ -74,8 +81,42 @@ public class StatsService {
                 .currentStreak(currentStreak)
                 .weeklyActivity(weeklyActivity)
                 .categoryStats(categoryStats)
+                .weakCategory(weakCategory(categoryStats))
                 .recentRecords(recentRecords)
                 .build();
+    }
+
+    /**
+     * 약점 영역: 기준(WEAK_MIN_SOLVED문제 이상 풀고 정답률 WEAK_ACCURACY_BELOW% 미만)을 만족하는 영역 중
+     * 정답률이 가장 낮은 영역의 분류명. 없으면 null. (영역이 하나뿐이라고 약점으로 보지 않는다)
+     */
+    static String weakCategory(List<StatsResponse.CategoryStat> stats) {
+        return stats.stream()
+                .filter(c -> c.getTotalSolved() >= WEAK_MIN_SOLVED && c.getAccuracyRate() < WEAK_ACCURACY_BELOW)
+                .min(Comparator.comparingDouble(StatsResponse.CategoryStat::getAccuracyRate))
+                .map(StatsResponse.CategoryStat::getTopicName)
+                .orElse(null);
+    }
+
+    /** 문제별 첫 제출 기록만 남긴다(입력·출력 모두 최신순). */
+    static List<UserProblemRecord> firstAttempts(List<UserProblemRecord> newestFirst) {
+        Map<Long, UserProblemRecord> first = new LinkedHashMap<>();
+        for (int i = newestFirst.size() - 1; i >= 0; i--) {
+            UserProblemRecord r = newestFirst.get(i);
+            first.putIfAbsent(r.getProblem().getId(), r);
+        }
+        List<UserProblemRecord> result = new ArrayList<>(first.values());
+        result.sort(Comparator.comparing(UserProblemRecord::getSolvedAt).reversed());
+        return result;
+    }
+
+    private static List<UserProblemRecord> inPeriod(List<UserProblemRecord> records, LocalDateTime since) {
+        return since == null ? records
+                : records.stream().filter(r -> !r.getSolvedAt().isBefore(since)).toList();
+    }
+
+    private static double rate(long correct, long total) {
+        return total == 0 ? 0.0 : Math.round((double) correct / total * 1000) / 10.0;
     }
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -102,7 +143,6 @@ public class StatsService {
             List<UserProblemRecord> group = entry.getValue();
             int total = group.size();
             int correct = (int) group.stream().filter(UserProblemRecord::isCorrect).count();
-            double rate = total == 0 ? 0.0 : Math.round((double) correct / total * 1000) / 10.0;
 
             Topic topic = topicRepository.findByName(category).orElse(null);
             result.add(StatsResponse.CategoryStat.builder()
@@ -111,7 +151,7 @@ public class StatsService {
                     .icon(topic != null ? topic.getIcon() : null)
                     .totalSolved(total)
                     .correctCount(correct)
-                    .accuracyRate(rate)
+                    .accuracyRate(rate(correct, total))
                     .build());
         }
         return result;
@@ -129,13 +169,10 @@ public class StatsService {
                 .orElse(0);
     }
 
-    private List<Integer> getWeeklyActivity(Long userId) {
-        LocalDate today = LocalDate.now(KST);
-        LocalDate monday = today.with(DayOfWeek.MONDAY);
+    /** 이번 주(월~일) 날짜별 풀이 수. */
+    private List<Integer> getWeeklyActivity(List<UserProblemRecord> records) {
+        LocalDate monday = LocalDate.now(KST).with(DayOfWeek.MONDAY);
 
-        List<UserProblemRecord> records = recordRepository.findByUserIdOrderBySolvedAtDesc(userId);
-
-        // 날짜별 풀이 수 집계
         Map<LocalDate, Long> countByDate = records.stream()
                 .collect(Collectors.groupingBy(
                         r -> r.getSolvedAt().atZone(KST).toLocalDate(),
@@ -144,8 +181,7 @@ public class StatsService {
 
         List<Integer> weekly = new ArrayList<>();
         for (int i = 0; i < 7; i++) {
-            LocalDate date = monday.plusDays(i);
-            weekly.add(countByDate.getOrDefault(date, 0L).intValue());
+            weekly.add(countByDate.getOrDefault(monday.plusDays(i), 0L).intValue());
         }
         return weekly;
     }

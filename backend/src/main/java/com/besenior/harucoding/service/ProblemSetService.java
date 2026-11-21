@@ -150,8 +150,12 @@ public class ProblemSetService {
             if (problem == null) continue;
 
             boolean isCorrect = checkAnswer(problem, item.getAnswer());
+            // XP는 문제별 첫 정답에만 준다(이번 기록을 저장하기 전에 확인). 단건 제출(ProblemService)과 같은 기준.
+            boolean firstCorrect = isCorrect && !recordRepository.existsCorrect(userId, problem.getId());
             if (isCorrect) {
                 correctCount++;
+            }
+            if (firstCorrect) {
                 xpEarned += XP_PER_CORRECT;
             }
 
@@ -162,7 +166,7 @@ public class ProblemSetService {
                     .isCorrect(isCorrect)
                     .userAnswer(item.getAnswer())
                     .timeSpentSec(item.getTimeSpentSec())
-                    .xpEarned(isCorrect ? XP_PER_CORRECT : 0)
+                    .xpEarned(firstCorrect ? XP_PER_CORRECT : 0)
                     .build());
 
             // 카테고리 통계 업데이트 (problem.category 문자열 → Topic 매핑, 없으면 생성)

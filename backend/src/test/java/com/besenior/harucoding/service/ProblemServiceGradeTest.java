@@ -5,6 +5,7 @@ import com.besenior.harucoding.DTO.AttemptResultResponse;
 import com.besenior.harucoding.entity.Problem;
 import com.besenior.harucoding.entity.Topic;
 import com.besenior.harucoding.entity.User;
+import com.besenior.harucoding.entity.UserStreakLog;
 import com.besenior.harucoding.generation.verify.CodeVerifier;
 import com.besenior.harucoding.generation.verify.GradeResult;
 import com.besenior.harucoding.global.enums.ProblemType;
@@ -24,7 +25,9 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -142,6 +145,24 @@ class ProblemServiceGradeTest {
         assertThat(other.isCorrect()).isFalse();   // 예시 1개로는 다른 표현의 정오를 가릴 수 없어 문자열 기준
         assertThat(other.getFailReason()).isNull(); // 실행하지 않았으므로 오답 이유 없음
         verifyNoInteractions(codeVerifier);
+    }
+
+    @Test
+    void 처음_맞힌_문제는_XP를_주고_이미_맞힌_문제는_다시_맞혀도_XP를_주지_않는다() {
+        stubAttempt(implementationProblem());
+        when(codeVerifier.grade(any(), eq("Python"), eq(HIDDEN))).thenReturn(new GradeResult(true, 2, 2, null, null));
+        // 오늘 이미 학습 기록이 있어 연속 학습 보너스는 없는 상황
+        when(streakLogRepository.findByUserIdAndStreakDate(any(), any()))
+                .thenReturn(Optional.of(UserStreakLog.builder().streakDate(java.time.LocalDate.now()).streakCount(1).build()));
+        when(recordRepository.existsCorrect(1L, 10L)).thenReturn(false, true);
+
+        AttemptResultResponse first = service().attempt(1L, 10L, request("return a + b"));
+        AttemptResultResponse again = service().attempt(1L, 10L, request("return a + b"));
+
+        assertThat(first.getXpEarned()).isEqualTo(10);
+        assertThat(again.isCorrect()).isTrue();
+        assertThat(again.getXpEarned()).isZero();
+        verify(leagueService, times(1)).addScore(eq(1L), anyInt());
     }
 
     @Test

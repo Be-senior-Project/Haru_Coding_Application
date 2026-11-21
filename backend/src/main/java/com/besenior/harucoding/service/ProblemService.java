@@ -88,6 +88,9 @@ public class ProblemService {
 
         GradeOutcome outcome = grade(problem, request.getAnswer());
         boolean correct = outcome.correct();
+        // XP는 문제별 첫 정답에만 준다. 같은 문제를 반복 제출해 XP·리그 점수를 올리지 못하게 하기 위함.
+        // (이번 기록을 저장하기 전에 확인해야 한다)
+        boolean firstCorrect = correct && !recordRepository.existsCorrect(userId, problemId);
         int xpEarned = 0;
 
         // 풀이 기록 저장 (추천 알고리즘의 신호원)
@@ -97,7 +100,7 @@ public class ProblemService {
                 .isCorrect(correct)
                 .userAnswer(toJsonSafe(request.getAnswer()))
                 .timeSpentSec(request.getTimeSpentSec())
-                .xpEarned(correct ? XP_PER_CORRECT : 0)
+                .xpEarned(firstCorrect ? XP_PER_CORRECT : 0)
                 .build());
 
         // 카테고리 통계 (category 문자열 → Topic 매핑, 없으면 생성)
@@ -110,14 +113,16 @@ public class ProblemService {
         stat.recordResult(correct);
         categoryStatRepository.save(stat);
 
-        // 스트릭 + XP
+        // 스트릭 + XP (다시 맞힌 문제도 오늘의 학습으로 연속 학습일에는 반영한다)
         if (correct) {
-            xpEarned += XP_PER_CORRECT;
+            if (firstCorrect) xpEarned += XP_PER_CORRECT;
             if (updateStreak(user)) xpEarned += XP_STREAK_BONUS;
-            xpLogRepository.save(UserXpLog.builder()
-                    .user(user).xpAmount(xpEarned).reason(XpReason.SOLVE_CORRECT).build());
-            user.addXp(xpEarned);
-            leagueService.addScore(userId, xpEarned);
+            if (xpEarned > 0) {
+                xpLogRepository.save(UserXpLog.builder()
+                        .user(user).xpAmount(xpEarned).reason(XpReason.SOLVE_CORRECT).build());
+                user.addXp(xpEarned);
+                leagueService.addScore(userId, xpEarned);
+            }
         }
 
         int currentStreak = getCurrentStreak(userId);
