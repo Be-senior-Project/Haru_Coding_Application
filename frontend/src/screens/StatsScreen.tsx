@@ -5,6 +5,7 @@ import {useTheme, type Colors} from '../theme/ThemeContext';
 import {useFocusEffect} from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {statsApi, type StatsData, type StatsPeriod} from '../api/statsApi';
+import {categoryLabel} from '../types/problem';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import ProgressRing from '../components/ProgressRing';
 
@@ -62,31 +63,33 @@ export default function StatsScreen() {
   const [hasToken, setHasToken] = useState(false);
   const [tab, setTab] = useState<(typeof TABS)[number]>('전체');
 
+  // 화면에 들어올 때와 탭을 바꿀 때 모두 "지금 선택된 탭" 기준으로 불러온다.
+  // (예전엔 처음 탭 값을 기억한 채 다시 불러와, 탭은 '주간'인데 데이터는 '전체'로 보이는 경우가 있었다)
   useFocusEffect(
     useCallback(() => {
-      loadStats(tab);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []),
+      let alive = true;
+      (async () => {
+        const token = await AsyncStorage.getItem('accessToken');
+        if (!alive) {return;}
+        setHasToken(!!token);
+        if (!token) {return;}
+        setLoading(true);
+        try {
+          const s = await statsApi.getMyStats(TAB_TO_PERIOD[tab]);
+          if (alive) {setStats(s);}
+        } catch (e) {
+          console.error('통계 로드 실패', e);
+        } finally {
+          if (alive) {setLoading(false);}
+        }
+      })();
+      return () => {
+        alive = false;
+      };
+    }, [tab]),
   );
 
-  const loadStats = async (t: (typeof TABS)[number]) => {
-    const token = await AsyncStorage.getItem('accessToken');
-    setHasToken(!!token);
-    if (!token) {return;}
-    setLoading(true);
-    try {
-      setStats(await statsApi.getMyStats(TAB_TO_PERIOD[t]));
-    } catch (e) {
-      console.error('통계 로드 실패', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleTabPress = (t: (typeof TABS)[number]) => {
-    setTab(t);
-    loadStats(t);
-  };
+  const handleTabPress = (t: (typeof TABS)[number]) => setTab(t);
 
   // weeklyActivity → 항상 길이 7의 "유효한 숫자"로 정규화 (월~일)
   const week = useMemo(() => {
@@ -96,12 +99,9 @@ export default function StatsScreen() {
   const maxBar = Math.max(...week, 1);
   const todayIdx = (new Date().getDay() + 6) % 7; // 월=0 기준
 
-  // 약점 영역: 푼 적 있는 주제 중 정답률 최저 (실제 데이터)
-  const weakest = useMemo(() => {
-    const cs = (stats?.categoryStats ?? []).filter(c => (Number(c.totalSolved) || 0) > 0);
-    if (cs.length === 0) {return null;}
-    return cs.reduce((min, c) => (Number(c.accuracyRate) < Number(min.accuracyRate) ? c : min));
-  }, [stats]);
+  // 약점 영역: 서버가 기준(3문제 이상 풀고 정답률 70% 미만)으로 고른 영역. 없으면 안내를 띄우지 않는다.
+  // (예전엔 정답률이 가장 낮은 영역을 무조건 약점으로 보여 줘서, 영역이 하나면 100%여도 약점으로 나왔다)
+  const weakName = stats?.weakCategory ? categoryLabel(stats.weakCategory) : null;
 
   if (loading) {
     return (
@@ -171,8 +171,8 @@ export default function StatsScreen() {
           </ProgressRing>
         </View>
 
-        {/* 바 차트는 백엔드가 주는 weeklyActivity(월~일) 기준이라 탭과 무관하게 최근 7일 */}
-        <Text style={styles.chartCaption}>최근 7일 활동</Text>
+        {/* 바 차트는 백엔드가 주는 weeklyActivity(이번 주 월~일) 기준이라 탭과 무관하게 같은 그래프 */}
+        <Text style={styles.chartCaption}>이번 주 활동</Text>
         <View style={styles.barChart}>
           {week.map((h, i) => (
             <View key={i} style={styles.barWrapper}>
@@ -210,7 +210,7 @@ export default function StatsScreen() {
             return (
               <View key={cat.topicId} style={[styles.topicRow, i > 0 && styles.topicDivider]}>
                 <View style={styles.topicLabelRow}>
-                  <Text style={styles.topicLabel}>{cat.topicName}</Text>
+                  <Text style={styles.topicLabel}>{categoryLabel(cat.topicName)}</Text>
                   <Text style={styles.topicPct}>{acc.toFixed(0)}%</Text>
                 </View>
                 <View style={styles.topicBarBg}>
@@ -221,11 +221,11 @@ export default function StatsScreen() {
             );
           })}
 
-          {weakest && (
+          {weakName && (
             <View style={styles.tipBox}>
               <MaterialIcons name="lightbulb" size={18} color={colors.warning} />
               <Text style={styles.tipText}>
-                <Text style={styles.tipStrong}>{weakest.topicName}</Text> 영역이 약점이에요! 해당 영역 문제를 더 풀어보는 걸 추천해요.
+                <Text style={styles.tipStrong}>{weakName}</Text> 영역이 약점이에요! 해당 영역 문제를 더 풀어보는 걸 추천해요.
               </Text>
             </View>
           )}

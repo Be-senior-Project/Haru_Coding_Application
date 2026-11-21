@@ -56,6 +56,19 @@ export function difficultySoft(d: number, c: Colors): string {
   return [c.successSoft, c.warningSoft, c.dangerSoft][d] ?? c.border;
 }
 
+// 서버의 영어 분류명(category/subcategory) → 화면에 보일 한국어 이름. 문제 은행·학습 통계가 같이 쓴다.
+export const CATEGORY_LABEL: Record<string, string> = {
+  'Basic/Introductory': '기초/입문',
+  'Algorithm/Data Structure': '알고리즘',
+  'Past Exam Prep': '기출 대비',
+  'DFS/BFS': '그래프 탐색',
+  'Dynamic Programming': '동적 계획법',
+};
+
+export function categoryLabel(s?: string | null): string {
+  return s ? CATEGORY_LABEL[s] ?? s : '';
+}
+
 // CodeBlock이 지원하는 언어로 매핑 (Java/C++는 우선 javascript 토크나이저로 폴백)
 export function toCodeLang(language?: string): 'python' | 'javascript' {
   return language?.toLowerCase().startsWith('py') ? 'python' : 'javascript';
