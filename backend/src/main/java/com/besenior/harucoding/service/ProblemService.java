@@ -10,6 +10,7 @@ import com.besenior.harucoding.global.exception.CustomException;
 import com.besenior.harucoding.global.exception.ErrorCode;
 import com.besenior.harucoding.global.util.AnswerLimits;
 import com.besenior.harucoding.generation.verify.CodeVerifier;
+import com.besenior.harucoding.generation.verify.GradeResult;
 import com.besenior.harucoding.generation.verify.VerifyResult;
 import com.besenior.harucoding.repository.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -69,7 +70,8 @@ public class ProblemService {
         Problem problem = problemRepository.findById(problemId)
                 .orElseThrow(() -> new CustomException(ErrorCode.PROBLEM_NOT_FOUND));
 
-        boolean correct = grade(problem, request.getAnswer());
+        GradeOutcome outcome = grade(problem, request.getAnswer());
+        boolean correct = outcome.correct();
         int xpEarned = 0;
 
         // 풀이 기록 저장 (추천 알고리즘의 신호원)
@@ -111,10 +113,13 @@ public class ProblemService {
                 .explanation(problem.getExplanation())
                 .xpEarned(xpEarned)
                 .currentStreak(currentStreak)
+                .testsPassed(outcome.passed())
+                .testsTotal(outcome.total())
                 .build();
     }
 
     // ── 코드 실행 (SOLVE-007, 채점 아님 — 이력에 남기지 않는다) ──
+    // 예시 입출력만 실행한다. 숨겨진 테스트는 결과에 드러나면 안 되므로 여기서 쓰지 않는다.
     @Transactional(readOnly = true)
     public VerifyResult run(Long problemId, Object answer) {
         AnswerLimits.check(answer);
@@ -129,20 +134,24 @@ public class ProblemService {
     }
 
     // ── 채점 ─────────────────────────────────────────────────────
+    /** 채점 결과. passed/total은 통과한 테스트 수 / 전체 테스트 수(예시 포함). */
+    private record GradeOutcome(boolean correct, int passed, int total) {}
+
     /**
-     * 채점: 유저 코드를 실제로 실행해 IO 출력이 맞으면 정답.
+     * 채점: 유저 코드를 예시 + 숨겨진 테스트로 실제 실행해 모두 맞으면 정답.
+     * 숨겨진 테스트가 없는 예전 문제는 예시로만 채점된다.
      * (실행 불가 — 스켈레톤/시그니처/IO 누락 또는 내부오류 — 시에만 문자열 비교로 폴백)
      */
-    private boolean grade(Problem problem, Object userAnswer) {
+    private GradeOutcome grade(Problem problem, Object userAnswer) {
         try {
             ObjectNode node = buildVerifyNode(problem, userAnswer);
             if (node != null) {
-                VerifyResult r = codeVerifier.verify(node, problem.getLanguage());
-                log.info("채점[실행]: type={} lang={} ok={} reason={} detail={}",
-                        problem.getType(), problem.getLanguage(), r.ok(), r.reason(), r.detail());
+                GradeResult r = codeVerifier.grade(node, problem.getLanguage(), problem.getHiddenTests());
+                log.info("채점[실행]: type={} lang={} ok={} 통과 {}/{} reason={} detail={}",
+                        problem.getType(), problem.getLanguage(), r.ok(), r.passed(), r.total(), r.reason(), r.detail());
                 // 우리 쪽 조립/시그니처 오류면 실행으로 판단 불가 → 문자열 비교로 폴백
                 if (!"internal_error".equals(r.reason())) {
-                    return r.ok();
+                    return new GradeOutcome(r.ok(), r.passed(), r.total());
                 }
             } else {
                 log.warn("채점[폴백]: 실행 불가 (스켈레톤/시그니처/IO 누락)");
@@ -151,7 +160,8 @@ public class ProblemService {
             log.warn("채점[폴백]: 실행 채점 예외 → 문자열 비교", e);
         }
         log.info("채점[문자열비교] 사용");
-        return checkAnswer(problem.getAnswer(), userAnswer);
+        boolean correct = checkAnswer(problem.getAnswer(), userAnswer);
+        return new GradeOutcome(correct, correct ? 1 : 0, 1);
     }
 
     /** CodeVerifier.verify()에 넘길 검증용 JSON 조립. 실행 불가(스켈레톤/시그니처/IO 누락)면 null. */

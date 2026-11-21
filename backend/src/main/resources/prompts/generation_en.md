@@ -51,6 +51,7 @@ The output has two parts: a `Set` object (shared metadata + concept) and a `Prob
         "input": "Input written as variable declarations in the requested LANGUAGE syntax",
         "output": "Expected stdout output as a string"
       },
+      "Hidden Inputs": ["3 to 5 additional inputs, each written exactly like IO Example.input. See rules below"],
       "Code Skeleton": "See rules per Type below",
       "Answer": "See rules per Type below",
       "Explanation": "Explanation of the solution strategy and time complexity. You must write it in Korean without fail.",
@@ -93,6 +94,14 @@ The output has two parts: a `Set` object (shared metadata + concept) and a `Prob
   - returns list `["a", "b"]` → output is `["a", "b"]`
   - returns string `hello` → output is `"hello"` (the double quotes are part of the output)
   - returns boolean true → output is `true`
+
+#### `Hidden Inputs` (required)
+- An array of **3 to 5** additional test inputs used for hidden grading. The solver never sees them.
+- Each item is written **exactly like `IO Example.input`**: variable declarations in the requested LANGUAGE syntax, with the same variable names in the same order as `Signature`, separated by `\n`.
+- Every input MUST satisfy the `Constraints`, MUST differ from `IO Example.input`, and MUST differ from each other.
+- Cover edge cases (smallest size, duplicates, negative numbers if allowed, boundary values) so that a solution which only returns the example output fails.
+- Keep each input short (under 300 characters) so it runs instantly.
+- Do NOT include outputs. The system computes the expected outputs by running the `Answer`.
 
 #### `solution()` behavior (strict)
 - `solution()` **MUST NOT** print anything itself. No `print`, no `System.out.println`, no `cout`, no logging, no I/O of any kind inside the function.
@@ -149,6 +158,6 @@ You MUST NOT copy the examples. Generate a **new, distinct set** that explores a
 
 If Subcategory is not "None", every problem must focus specifically on the given Subcategory within the Category.
 
-Generate exactly {{problemsPerSet}} problems in the Problems array, all sharing the single concept in Set.Concept Explanation. Each problem Type must be one of the Allowed Problem Types. Follow the strict JSON format in the system prompt (Set.Total Count must equal the count; every problem Set Id must match Set.Set Id; solution() must not print; every problem must have a non-null Code Skeleton; each problem Language must be the requested LANGUAGE).
+Generate exactly {{problemsPerSet}} problems in the Problems array, all sharing the single concept in Set.Concept Explanation. Each problem Type must be one of the Allowed Problem Types. Follow the strict JSON format in the system prompt (Set.Total Count must equal the count; every problem Set Id must match Set.Set Id; solution() must not print; every problem must have a non-null Code Skeleton; every problem must have 3 to 5 Hidden Inputs; each problem Language must be the requested LANGUAGE).
 
 Output valid JSON only. Do not include any prose or markdown code fences outside the JSON.

@@ -73,6 +73,12 @@ public class Problem {
     @Column(name = "concept_explanation", columnDefinition = "TEXT")
     private String conceptExplanation;
 
+    // 숨겨진 테스트: [{"input": 변수 선언문, "output": 기대 출력}]. 채점에만 쓰고 조회 응답(ProblemResponse)에는 넣지 않는다.
+    // 예시 출력만 그대로 출력하는 풀이를 걸러내기 위한 것이라, 앱에 노출되면 의미가 없어진다.
+    @Type(JsonBinaryType.class)
+    @Column(name = "hidden_tests", columnDefinition = "jsonb")
+    private List<Map<String, String>> hiddenTests;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -82,7 +88,7 @@ public class Problem {
                    int difficulty, String language, String title, String description,
                    List<String> constraints, Map<String, String> ioExample,
                    String codeSkeleton, Object answer, String explanation,
-                   String conceptExplanation) {
+                   String conceptExplanation, List<Map<String, String>> hiddenTests) {
         this.setId = setId;
         this.type = type;
         this.category = category;
@@ -97,5 +103,6 @@ public class Problem {
         this.answer = answer;
         this.explanation = explanation;
         this.conceptExplanation = conceptExplanation;
+        this.hiddenTests = hiddenTests;
     }
 }

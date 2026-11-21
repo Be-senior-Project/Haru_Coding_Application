@@ -16,13 +16,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 문제 생성 파이프라인 (엔진 본체).
  *
  * retrieve(시드 few-shot) → generate(세트, #15) → verify(각 문제, #14)
+ *   → 숨겨진 테스트 출력 계산(정답 코드 실행)
  *   → 통과분만 평탄화 저장(problems) + 임베딩 저장(problem_embeddings)
  *
  * 검증 정책: 통과 문제가 1개 이상이면 그 통과분으로 저장 후 반환,
@@ -41,6 +44,9 @@ public class GenerationPipeline {
     private final ObjectMapper objectMapper;
 
     private static final int MAX_RETRIES = 3;
+    static final int MAX_HIDDEN_TESTS = 5;
+    /** 숨겨진 테스트 입력 하나의 최대 길이. 지나치게 큰 입력은 채점 시간만 늘린다. */
+    static final int MAX_HIDDEN_INPUT_CHARS = 2000;
 
     /** 문제 세트 1개를 생성·검증·저장하고, 통과한 Problem들을 반환. 실패 시 빈 리스트. */
     @Transactional
@@ -67,8 +73,15 @@ public class GenerationPipeline {
                     log.info("[{}/{}] 문제 검증 실패 [{}]: {}", attempt, MAX_RETRIES, vr.reason(), vr.detail());
                     continue;
                 }
+                // 숨겨진 테스트: 출력은 AI가 쓴 값이 아니라 검증을 통과한 정답 코드를 실행해 계산한다
+                List<Map<String, String>> hiddenTests =
+                        codeVerifier.computeOutputs(pNode, language, hiddenInputs(pNode));
+                if (hiddenTests.isEmpty()) {
+                    log.info("[{}/{}] 숨겨진 테스트 없음(입력 누락 또는 정답 코드 실행 실패) → 예시로만 채점됨",
+                            attempt, MAX_RETRIES);
+                }
                 Problem problem = problemRepository.save(
-                        toProblem(pNode, category, subcategory, difficulty, language, concept, setId));
+                        toProblem(pNode, category, subcategory, difficulty, language, concept, setId, hiddenTests));
                 embeddingService.saveEmbedding(problem);
                 saved.add(problem);
             }
@@ -84,9 +97,27 @@ public class GenerationPipeline {
         return List.of();
     }
 
+    /**
+     * AI가 준 숨겨진 테스트 입력("Hidden Inputs")을 정리한다.
+     * 빈 값·예시와 같은 입력·중복·지나치게 긴 입력은 버리고 최대 MAX_HIDDEN_TESTS개만 쓴다.
+     */
+    static List<String> hiddenInputs(JsonNode p) {
+        String example = p.path("IO Example").path("input").asText("").strip();
+        Set<String> picked = new LinkedHashSet<>();
+        for (JsonNode n : p.path("Hidden Inputs")) {
+            if (!n.isTextual()) continue;
+            String input = n.asText().strip();
+            if (input.isEmpty() || input.length() > MAX_HIDDEN_INPUT_CHARS || input.equals(example)) continue;
+            picked.add(input);
+            if (picked.size() == MAX_HIDDEN_TESTS) break;
+        }
+        return new ArrayList<>(picked);
+    }
+
     /** 생성된 문제 JSON 1건 → 평탄화된 Problem 엔티티. */
     private Problem toProblem(JsonNode p, String category, String subcategory, int difficulty,
-                              String language, String concept, String setId) {
+                              String language, String concept, String setId,
+                              List<Map<String, String>> hiddenTests) {
         List<String> constraints = p.path("Constraints").isArray()
                 ? objectMapper.convertValue(p.path("Constraints"), new TypeReference<List<String>>() {})
                 : List.of();
@@ -121,6 +152,7 @@ public class GenerationPipeline {
                 .answer(answer)
                 .explanation(p.path("Explanation").asText(""))
                 .conceptExplanation(concept)
+                .hiddenTests(hiddenTests.isEmpty() ? null : hiddenTests)
                 .build();
     }
 

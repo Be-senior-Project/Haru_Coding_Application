@@ -89,6 +89,8 @@ export default function ProblemSolveScreen() {
   const [isCorrect, setIsCorrect] = useState(false);
   const [resultAnswer, setResultAnswer] = useState<string | string[] | null>(null);
   const [resultExplain, setResultExplain] = useState('');
+  // 서버 채점의 테스트 통과 수(예시 + 숨겨진 테스트). 목 데모·예전 문제(테스트 1개)는 표시하지 않는다.
+  const [resultTests, setResultTests] = useState<{passed: number; total: number} | null>(null);
   const [results, setResults] = useState<{id: number; correct: boolean}[]>([]);
 
   const problem: Problem | undefined = problems[currentIndex];
@@ -177,6 +179,7 @@ export default function ProblemSolveScreen() {
     setIsCorrect(false);
     setResultAnswer(null);
     setResultExplain('');
+    setResultTests(null);
     setStartedAt(Date.now());
     setRunResult(null);
   }, [currentIndex, problem]);
@@ -222,6 +225,11 @@ export default function ProblemSolveScreen() {
         setIsCorrect(res.correct);
         setResultAnswer(res.correctAnswer);
         setResultExplain(res.explanation);
+        setResultTests(
+          res.testsTotal && res.testsTotal > 1
+            ? {passed: res.testsPassed ?? 0, total: res.testsTotal}
+            : null,
+        );
         setResults(prev => [...prev, {id: problem.id, correct: res.correct}]);
         const today = new Date().toISOString().split('T')[0];
         await AsyncStorage.multiSet([
@@ -461,6 +469,11 @@ export default function ProblemSolveScreen() {
       {submitted && (
         <View style={[styles.resultCard, isCorrect ? styles.correctCard : styles.wrongCard]}>
           <Text style={styles.resultTitle}>{isCorrect ? '🎉 정답!' : '😢 오답'}</Text>
+          {resultTests && (
+            <Text style={styles.testSummary}>
+              테스트 {resultTests.passed}/{resultTests.total} 통과 (숨겨진 테스트 포함)
+            </Text>
+          )}
           {!isCorrect && resultAnswer != null && (
             <>
               <Text style={styles.answerLabel}>모범 답안</Text>
@@ -619,6 +632,7 @@ function makeStyles(c: Colors, fs: number) {
     correctCard: {backgroundColor: c.successSoft},
     wrongCard: {backgroundColor: c.dangerSoft},
     resultTitle: {fontSize: 20 * fs, fontWeight: '700', color: c.text, marginBottom: 10},
+    testSummary: {fontSize: 13 * fs, fontWeight: '600', color: c.text, marginTop: -4, marginBottom: 12},
     runResultBox: {borderRadius: 14, padding: 16, marginTop: 12},
     runResultTitle: {fontSize: 15 * fs, fontWeight: '700', color: c.text, marginBottom: 8},
     answerLabel: {fontSize: 12 * fs, fontWeight: '700', color: c.text, marginBottom: 6},

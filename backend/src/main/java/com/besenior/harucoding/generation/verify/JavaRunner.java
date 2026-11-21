@@ -5,7 +5,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * Java 검증기. resources/runner/java_template.txt 를 로드해 조립 후 javac/java 실행.
+ * Java 실행기. resources/runner/java_template.txt 를 로드해 조립 후 javac/java 실행.
  * 반환값은 __json 헬퍼로 JSON 직렬화해 출력 → Python json.dumps 형식과 일치시킨다.
  */
 public class JavaRunner implements Runner {
@@ -13,23 +13,36 @@ public class JavaRunner implements Runner {
     private static final int COMPILE_TIMEOUT = 15;
     private static final int EXEC_TIMEOUT = 5;
 
+    /**
+     * 입력마다 main 안에 블록을 하나씩 만든다. 블록이 달라야 입력마다 같은 변수 이름을 다시 선언할 수 있다.
+     * 사용자 코드는 마지막에 넣는다(RunnerSupport.replaceOnce 참고).
+     */
+    static String buildProgram(String template, String answerCode, List<String> ioInputs, String args) {
+        StringBuilder cases = new StringBuilder();
+        for (String io : ioInputs) {
+            cases.append("        {\n")
+                    .append("            ").append(RunnerSupport.indentBody(io, 12)).append('\n')
+                    .append("            System.out.println(__json((Object) new Main().solution(")
+                    .append(args).append(")));\n")
+                    .append("        }\n");
+        }
+        String withCases = RunnerSupport.replaceOnce(template, "__CASES__", cases.toString());
+        return RunnerSupport.replaceOnce(withCases, "__ANSWER__", RunnerSupport.indentBody(answerCode, 4));
+    }
+
     @Override
-    public VerifyResult run(String answerCode, String ioInput, String expectedOutput, String signature) {
+    public ExecutionResult execute(String answerCode, List<String> ioInputs, String signature) {
         List<String> params;
         try {
             params = SignatureParser.extractParamNames(signature);
         } catch (Exception e) {
-            return VerifyResult.fail("internal_error", "Signature 파싱 실패: " + e.getMessage());
+            return ExecutionResult.fail("internal_error", "Signature 파싱 실패: " + e.getMessage());
         }
-        String args = String.join(", ", params);
-
-        String program = RunnerSupport.loadTemplate("runner/java_template.txt")
-                .replace("__ANSWER__", RunnerSupport.indentBody(answerCode, 4))
-                .replace("__IO__", RunnerSupport.indentBody(ioInput, 8))
-                .replace("__ARGS__", args);
 
         Path tmp = null;
         try {
+            String program = buildProgram(RunnerSupport.loadTemplate("runner/java_template.txt"),
+                    answerCode, ioInputs, String.join(", ", params));
             tmp = Files.createTempDirectory("verify_java");
             Path src = tmp.resolve("Main.java");
             Files.writeString(src, program);
@@ -40,10 +53,10 @@ public class JavaRunner implements Runner {
                     List.of("javac", "-encoding", "UTF-8", "-J-Xmx256m", "-J-XX:+UseSerialGC", src.toString()),
                     tmp.toFile(), COMPILE_TIMEOUT);
             if (compile.timedOut()) {
-                return VerifyResult.fail("compile_error", "컴파일 시간 " + COMPILE_TIMEOUT + "초 초과");
+                return ExecutionResult.fail("compile_error", "컴파일 시간 " + COMPILE_TIMEOUT + "초 초과");
             }
             if (compile.exit() != 0) {
-                return VerifyResult.fail("compile_error", RunnerSupport.blankToDefault(compile.stderr(), "javac failed"));
+                return ExecutionResult.fail("compile_error", RunnerSupport.blankToDefault(compile.stderr(), "javac failed"));
             }
 
             ProcessUtils.Result exec = ProcessUtils.run(
@@ -51,19 +64,16 @@ public class JavaRunner implements Runner {
                             "-cp", tmp.toString(), "Main"),
                     tmp.toFile(), EXEC_TIMEOUT);
             if (exec.timedOut()) {
-                return VerifyResult.fail("timeout", "실행 시간 " + EXEC_TIMEOUT + "초 초과");
+                return ExecutionResult.fail("timeout", "실행 시간 " + EXEC_TIMEOUT + "초 초과");
             }
             if (exec.exit() != 0) {
-                return VerifyResult.fail("runtime_error", RunnerSupport.blankToDefault(exec.stderr(), "non-zero exit code"));
+                return ExecutionResult.fail("runtime_error",
+                        RunnerSupport.blankToDefault(exec.stderr(), "non-zero exit code"),
+                        RunnerSupport.outputLines(exec.stdout()));
             }
-            String actual = exec.stdout().strip();
-            String expected = expectedOutput.strip();
-            if (!actual.equals(expected)) {
-                return VerifyResult.fail("output_mismatch", "expected: " + expected + ", actual: " + actual, actual);
-            }
-            return VerifyResult.pass(actual);
+            return ExecutionResult.success(RunnerSupport.outputLines(exec.stdout()));
         } catch (Exception e) {
-            return VerifyResult.fail("internal_error", "실행 오류: " + e.getMessage());
+            return ExecutionResult.fail("internal_error", "실행 오류: " + e.getMessage());
         } finally {
             RunnerSupport.deleteQuietly(tmp);
         }

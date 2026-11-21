@@ -38,7 +38,6 @@ static string __json(const pair<A, B>& p) {
 __ANSWER__
 
 int main() {
-    __IO__
-    cout << __json(solution(__ARGS__)) << endl;
+__CASES__
     return 0;
 }

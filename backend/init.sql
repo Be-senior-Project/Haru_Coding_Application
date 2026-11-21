@@ -97,8 +97,12 @@ CREATE TABLE IF NOT EXISTS problems (
     answer              JSONB           NOT NULL,                    -- 문자열 또는 문자열 배열
     explanation         TEXT            NOT NULL,
     concept_explanation TEXT,                                        -- seed의 set 단위 개념 설명
+    hidden_tests        JSONB,                                       -- 숨겨진 테스트 [{"input","output"}] (채점 전용, 응답 미포함)
     created_at          TIMESTAMP       NOT NULL DEFAULT NOW()
     );
+
+-- 이미 초기화된 DB에도 반영되도록 가드 (CREATE TABLE IF NOT EXISTS라 컬럼 추가는 안 됨)
+ALTER TABLE problems ADD COLUMN IF NOT EXISTS hidden_tests JSONB;
 
 CREATE INDEX IF NOT EXISTS idx_problems_difficulty
     ON problems(difficulty);

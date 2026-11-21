@@ -12,6 +12,9 @@ export interface AttemptResult {
   explanation: string;
   xpEarned: number;
   currentStreak: number;
+  // 통과한 테스트 수 / 전체 테스트 수(예시 + 숨겨진 테스트). 숨겨진 테스트 내용은 오지 않는다.
+  testsPassed?: number;
+  testsTotal?: number;
 }
 
 export interface CodeRunResult {
