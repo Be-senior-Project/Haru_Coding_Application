@@ -15,6 +15,12 @@ export interface AttemptResult {
   // 통과한 테스트 수 / 전체 테스트 수(예시 + 숨겨진 테스트). 숨겨진 테스트 내용은 오지 않는다.
   testsPassed?: number;
   testsTotal?: number;
+  // 오답 이유(코드를 실행해 채점했을 때만). 숨겨진 테스트의 입력·출력은 오지 않는다.
+  failReason?: string | null;     // compile_error | runtime_error | timeout | output_mismatch
+  failedTest?: number | null;     // 처음 틀린 테스트: 0 = 예시, n = 숨겨진 테스트 n번, null = 알 수 없음
+  failMessage?: string | null;    // 컴파일·실행 오류 메시지 등
+  expectedOutput?: string | null; // 예시에서 틀렸을 때 기대 출력
+  actualOutput?: string | null;   // 예시에서 틀렸을 때 내 출력
 }
 
 export interface CodeRunResult {

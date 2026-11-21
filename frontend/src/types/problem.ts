@@ -35,17 +35,18 @@ export const TYPE_LABEL: Record<ProblemType, string> = {
   FILL_IN_THE_BLANK: '빈칸 채우기',
 };
 
+// 서버 기준(프로그래머스 Lv.0~2)과 같은 이름. 서버는 0·1·2를 입문·초급·중급으로 쓴다(DTO·세트 난이도 변환 참고).
 export const DIFFICULTY_LABEL: Record<number, string> = {
-  0: '기초',
-  1: '중급',
-  2: '고급',
+  0: '입문',
+  1: '초급',
+  2: '중급',
 };
 
 export function difficultyLabel(d: number): string {
   return DIFFICULTY_LABEL[d] ?? '기타';
 }
 
-// 난이도 색은 테마 토큰에서 가져온다 (기초=성공, 중급=주의, 고급=위험).
+// 난이도 색은 테마 토큰에서 가져온다 (입문=성공, 초급=주의, 중급=위험).
 export function difficultyColor(d: number, c: Colors): string {
   return [c.success, c.warning, c.danger][d] ?? c.subText;
 }

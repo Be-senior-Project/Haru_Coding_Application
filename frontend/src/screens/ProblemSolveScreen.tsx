@@ -12,7 +12,7 @@ import type {RootStackParamList} from '../navigation/AppNavigator';
 import {problemSets} from '../data/mockProblems';
 import type {Problem} from '../types/problem';
 import {TYPE_LABEL, toCodeLang} from '../types/problem';
-import {problemApi, type CodeRunResult} from '../api/problemApi';
+import {problemApi, type AttemptResult, type CodeRunResult} from '../api/problemApi';
 import {scrapApi} from '../api/scrapApi';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import CodeBlock, {formatCode} from '../components/CodeBlock';
@@ -45,6 +45,27 @@ function displayCode(p: Problem): string {
     return code.replace(/\{\{CORE\}\}/g, `${mark} (여기에 코드를 작성하세요)`);
   }
   return code;
+}
+
+// 오답 이유(서버 채점 결과). 숨겨진 테스트는 번호만 오고 입력·출력은 오지 않는다.
+type FailInfo = Pick<AttemptResult, 'failReason' | 'failedTest' | 'failMessage' | 'expectedOutput' | 'actualOutput'>;
+
+function failTitle(f: FailInfo): string | null {
+  const n = f.failedTest;
+  switch (f.failReason) {
+    case 'compile_error':
+      return '컴파일 오류가 났어요';
+    case 'runtime_error':
+      return n != null && n > 0 ? `숨겨진 테스트 ${n}번을 실행하다 오류가 났어요` : '실행 중 오류가 났어요';
+    case 'timeout':
+      return '실행 시간이 너무 길어요 (시간 초과)';
+    case 'output_mismatch':
+      if (n === 0) return '예시 입력의 출력이 달라요';
+      if (n != null && n > 0) return `숨겨진 테스트 ${n}번의 출력이 달라요`;
+      return '출력 형식이 달라요';
+    default:
+      return null;
+  }
 }
 
 // 구현 문제는 주석 자리에 들어갈 코드만 써야 한다(서버가 그 자리에 끼워 넣어 실행). 함수 전체를 쓰면 오답이 된다.
@@ -127,6 +148,7 @@ export default function ProblemSolveScreen() {
   const [resultExplain, setResultExplain] = useState('');
   // 서버 채점의 테스트 통과 수(예시 + 숨겨진 테스트). 목 데모·예전 문제(테스트 1개)는 표시하지 않는다.
   const [resultTests, setResultTests] = useState<{passed: number; total: number} | null>(null);
+  const [resultFail, setResultFail] = useState<FailInfo | null>(null);
   const [results, setResults] = useState<{id: number; correct: boolean}[]>([]);
 
   const problem: Problem | undefined = problems[currentIndex];
@@ -216,6 +238,7 @@ export default function ProblemSolveScreen() {
     setResultAnswer(null);
     setResultExplain('');
     setResultTests(null);
+    setResultFail(null);
     setStartedAt(Date.now());
     setRunResult(null);
     setHintVisible(false);
@@ -270,6 +293,17 @@ export default function ProblemSolveScreen() {
         setResultTests(
           res.testsTotal && res.testsTotal > 1
             ? {passed: res.testsPassed ?? 0, total: res.testsTotal}
+            : null,
+        );
+        setResultFail(
+          !res.correct && res.failReason
+            ? {
+                failReason: res.failReason,
+                failedTest: res.failedTest,
+                failMessage: res.failMessage,
+                expectedOutput: res.expectedOutput,
+                actualOutput: res.actualOutput,
+              }
             : null,
         );
         setResults(prev => [...prev, {id: problem.id, correct: res.correct}]);
@@ -458,6 +492,7 @@ export default function ProblemSolveScreen() {
           count={countBlanks(problem)}
           values={fillAnswers}
           submitted={submitted}
+          allCorrect={submitted && isCorrect}
           correctAnswers={correctAnswersForHint}
           onChange={(i, v) =>
             setFillAnswers(prev => {
@@ -545,6 +580,20 @@ export default function ProblemSolveScreen() {
             <Text style={styles.testSummary}>
               테스트 {resultTests.passed}/{resultTests.total} 통과 (숨겨진 테스트 포함)
             </Text>
+          )}
+          {!isCorrect && resultFail && !!failTitle(resultFail) && (
+            <View style={styles.failSection}>
+              <Text style={styles.failTitle}>{failTitle(resultFail)}</Text>
+              {resultFail.expectedOutput != null && resultFail.actualOutput != null && (
+                <>
+                  <Text style={styles.failLabel}>내 출력</Text>
+                  <Text style={styles.failValue}>{resultFail.actualOutput || '(출력 없음)'}</Text>
+                  <Text style={styles.failLabel}>기대 출력</Text>
+                  <Text style={styles.failValue}>{resultFail.expectedOutput}</Text>
+                </>
+              )}
+              {!!resultFail.failMessage && <Text style={styles.failMessage}>{resultFail.failMessage}</Text>}
+            </View>
           )}
           {!isCorrect && resultAnswer != null && (
             <>
@@ -663,8 +712,11 @@ export default function ProblemSolveScreen() {
 
 // ─── 하위 컴포넌트 ────────────────────────────────────────────
 
-function FillBlank({count, values, submitted, correctAnswers, onChange}: {
-  count: number; values: string[]; submitted: boolean;
+// allCorrect: 서버가 최종 정답으로 판정했는지. 정답이면 모든 칸을 정답 색으로 칠한다.
+// 서버는 숨겨진 테스트가 있으면 코드를 실행해 채점하므로, 모범 답안과 글자가 다른 표현(n == x 등)도 정답일 수 있다.
+// 칸별 글자 비교와 "정답: …" 안내는 오답일 때만 보여 준다.
+function FillBlank({count, values, submitted, allCorrect, correctAnswers, onChange}: {
+  count: number; values: string[]; submitted: boolean; allCorrect: boolean;
   correctAnswers: string[]; onChange: (i: number, v: string) => void;
 }) {
   const {colors, fontScale} = useTheme();
@@ -673,8 +725,8 @@ function FillBlank({count, values, submitted, correctAnswers, onChange}: {
     <View style={styles.fillContainer}>
       {Array.from({length: count}).map((_, i) => {
         const hasAnswer = correctAnswers.length > i;
-        const correct = submitted && hasAnswer &&
-          normBlank(values[i]) === normBlank(correctAnswers[i]);
+        const correct = submitted && (allCorrect ||
+          (hasAnswer && normBlank(values[i]) === normBlank(correctAnswers[i])));
         const wrong = submitted && !correct;
         return (
           <View key={i} style={styles.fillRow}>
@@ -803,6 +855,12 @@ function makeStyles(c: Colors, fs: number) {
     wrongCard: {backgroundColor: c.dangerSoft},
     resultTitle: {fontSize: 20 * fs, fontWeight: '700', color: c.text, marginBottom: 10},
     testSummary: {fontSize: 13 * fs, fontWeight: '600', color: c.text, marginTop: -4, marginBottom: 12},
+    // 오답 이유 (색 있는 결과 카드 위라 본문은 text 색)
+    failSection: {marginBottom: 14},
+    failTitle: {fontSize: 14 * fs, fontWeight: '700', color: c.text, marginBottom: 6},
+    failLabel: {fontSize: 11 * fs, fontWeight: '700', color: c.text, marginTop: 4},
+    failValue: {fontSize: 13 * fs, color: c.text, fontFamily: 'monospace', marginTop: 2},
+    failMessage: {fontSize: 12 * fs, color: c.text, fontFamily: 'monospace', marginTop: 6, lineHeight: 18 * fs},
     runResultBox: {borderRadius: 14, padding: 16, marginTop: 12},
     runResultTitle: {fontSize: 15 * fs, fontWeight: '700', color: c.text, marginBottom: 8},
     answerLabel: {fontSize: 12 * fs, fontWeight: '700', color: c.text, marginBottom: 6},
