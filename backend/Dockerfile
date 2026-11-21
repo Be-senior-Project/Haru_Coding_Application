@@ -13,6 +13,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
+# 사용자 제출 코드는 서버(root)와 다른 권한 없는 계정으로 실행한다(ProcessUtils 참고).
+# 서버와 같은 계정이면 /proc/1/environ 등으로 서버 환경변수(API 키)를 읽을 수 있다.
+# 계정 전환(setpriv)·자원 제한(prlimit) 도구가 없으면 빌드를 실패시킨다.
+RUN useradd --system --no-create-home --shell /usr/sbin/nologin coderunner \
+    && command -v setpriv && command -v prlimit
+ENV CODE_RUNNER_USER=coderunner
+
 WORKDIR /app
 COPY --from=build /app/build/libs/*.jar app.jar
 

@@ -34,8 +34,11 @@ public class JavaRunner implements Runner {
             Path src = tmp.resolve("Main.java");
             Files.writeString(src, program);
 
+            // 동시에 여러 사용자의 코드가 컴파일·실행되므로 JVM 하나가 서버 메모리를 다 쓰지 못하게 상한을 둔다.
+            // 실행 환경변수를 비우면서 기본 인코딩이 바뀌지 않도록 UTF-8도 명시한다.
             ProcessUtils.Result compile = ProcessUtils.run(
-                    List.of("javac", src.toString()), tmp.toFile(), COMPILE_TIMEOUT);
+                    List.of("javac", "-encoding", "UTF-8", "-J-Xmx256m", "-J-XX:+UseSerialGC", src.toString()),
+                    tmp.toFile(), COMPILE_TIMEOUT);
             if (compile.timedOut()) {
                 return VerifyResult.fail("compile_error", "컴파일 시간 " + COMPILE_TIMEOUT + "초 초과");
             }
@@ -44,7 +47,9 @@ public class JavaRunner implements Runner {
             }
 
             ProcessUtils.Result exec = ProcessUtils.run(
-                    List.of("java", "-cp", tmp.toString(), "Main"), tmp.toFile(), EXEC_TIMEOUT);
+                    List.of("java", "-Xmx256m", "-XX:+UseSerialGC", "-Dfile.encoding=UTF-8",
+                            "-cp", tmp.toString(), "Main"),
+                    tmp.toFile(), EXEC_TIMEOUT);
             if (exec.timedOut()) {
                 return VerifyResult.fail("timeout", "실행 시간 " + EXEC_TIMEOUT + "초 초과");
             }
