@@ -39,8 +39,19 @@ function countBlanks(p: Problem): number {
 function displayCode(p: Problem): string {
   const code = p.codeSkeleton ?? '';
   if (p.type === 'FILL_IN_THE_BLANK') return code.replace(/\{\{BLANK_\d+\}\}/g, '___');
-  if (p.type === 'IMPLEMENTATION') return code.replace(/\{\{CORE\}\}/g, '# (여기에 코드를 작성하세요)');
+  if (p.type === 'IMPLEMENTATION') {
+    // 언어에 맞는 주석 기호로 표시 (Java·C++에 '#'이 보이지 않게)
+    const mark = toCodeLang(p.language) === 'python' ? '#' : '//';
+    return code.replace(/\{\{CORE\}\}/g, `${mark} (여기에 코드를 작성하세요)`);
+  }
   return code;
+}
+
+// 구현 문제는 주석 자리에 들어갈 코드만 써야 한다(서버가 그 자리에 끼워 넣어 실행). 함수 전체를 쓰면 오답이 된다.
+function answerPlaceholder(p: Problem): string {
+  if (p.type === 'DEBUGGING') return '코드를 수정하세요';
+  if (p.type === 'IMPLEMENTATION') return '주석 자리에 들어갈 코드만 작성하세요';
+  return '코드를 작성하세요';
 }
 
 export default function ProblemSolveScreen() {
@@ -460,14 +471,14 @@ export default function ProblemSolveScreen() {
         <>
           <TouchableOpacity
             style={[styles.fmtBtn, submitted && styles.btnDisabled]}
-            onPress={() => setCodeAnswer(formatCode(codeAnswer, 42, problem.language))}
+            onPress={() => setCodeAnswer(formatCode(codeAnswer, problem.language))}
             disabled={submitted}>
             <Text style={styles.fmtBtnText}>⟲ 코드 정렬</Text>
           </TouchableOpacity>
           <CodeAnswer
             value={codeAnswer}
             submitted={submitted}
-            placeholder={problem.type === 'DEBUGGING' ? '코드를 수정하세요' : '코드를 작성하세요'}
+            placeholder={answerPlaceholder(problem)}
             onChange={setCodeAnswer}
           />
         </>
