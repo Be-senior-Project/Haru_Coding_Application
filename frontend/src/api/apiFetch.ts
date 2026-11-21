@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const BASE_URL = 'http://10.0.2.2:8080';
+import {API_BASE_URL as BASE_URL} from './config';
 
 // ── 토큰 자동 갱신 ───────────────────────────────────────────────
 // 401/403(인증 만료 추정) 시 refreshToken으로 액세스 토큰 재발급 후 1회 재시도.
