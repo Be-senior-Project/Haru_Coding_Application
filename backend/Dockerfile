@@ -20,8 +20,12 @@ RUN useradd --system --no-create-home --shell /usr/sbin/nologin coderunner \
     && command -v setpriv && command -v prlimit
 ENV CODE_RUNNER_USER=coderunner
 
+# 서버의 "오늘"(연속 학습, 하루 목표, 생성 한도)이 한국 날짜 기준이 되도록 시간대를 고정한다.
+# 기본값(UTC)이면 한국 시간 0~9시 사이의 풀이가 전날로 집계된다.
+ENV TZ=Asia/Seoul
+
 WORKDIR /app
 COPY --from=build /app/build/libs/*.jar app.jar
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Duser.timezone=Asia/Seoul", "-jar", "app.jar"]
