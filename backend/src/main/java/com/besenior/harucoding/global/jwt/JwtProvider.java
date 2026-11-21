@@ -13,12 +13,21 @@ import java.util.Date;
 @Component
 public class JwtProvider {
 
+    /** HS256 서명에 필요한 최소 키 길이(256비트). */
+    static final int MIN_SECRET_BYTES = 32;
+
     private final SecretKey secretKey;
     private final long accessTokenExpiry;
     private final long refreshTokenExpiry;
 
     public JwtProvider(JwtProperties jwtProperties) {
-        this.secretKey = Keys.hmacShaKeyFor(jwtProperties.getSecret().getBytes(StandardCharsets.UTF_8));
+        String secret = jwtProperties.getSecret();
+        if (secret == null || secret.isBlank()
+                || secret.getBytes(StandardCharsets.UTF_8).length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException("JWT_SECRET 환경변수가 없거나 너무 짧습니다(" + MIN_SECRET_BYTES
+                    + "바이트 이상 필요). 생성 예: openssl rand -base64 48");
+        }
+        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.accessTokenExpiry = jwtProperties.getAccessTokenExpiry();
         this.refreshTokenExpiry = jwtProperties.getRefreshTokenExpiry();
     }

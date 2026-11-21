@@ -36,6 +36,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: root1212
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       ENCRYPTION_SECRET_KEY: ${ENCRYPTION_SECRET_KEY}
+      JWT_SECRET: ${JWT_SECRET}
       Haru_Coding_backend_CLIENT_ID: ${GOOGLE_CLIENT_ID:-dummy-client-id}
     ports:
       - "8080:8080"
