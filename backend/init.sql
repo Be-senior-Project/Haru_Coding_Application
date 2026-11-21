@@ -242,3 +242,24 @@ CREATE TABLE IF NOT EXISTS notifications (
     );
 
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
+
+-- ────────────────────────────────────────────
+-- 14. seed_sets (문제 생성 프롬프트에 넣는 예시 세트. 사용자에게는 서빙하지 않음)
+-- ────────────────────────────────────────────
+-- 예전에는 Hibernate(ddl-auto)가 만들던 테이블이다. 새 DB(운영 RDS 등)에서도 init.sql만으로
+-- 전체 구조가 만들어지도록 여기에 둔다. 서버 첫 기동 시 SeedLoader가 all_seeds.json을 적재한다.
+CREATE TABLE IF NOT EXISTS seed_sets (
+    id                  BIGSERIAL PRIMARY KEY,
+    category            VARCHAR(255) NOT NULL,
+    subcategory         VARCHAR(255),
+    difficulty          INT          NOT NULL,
+    language            VARCHAR(255) NOT NULL,
+    concept_explanation TEXT,
+    problems            JSONB,
+    embedding           VECTOR(1536)            -- SeedLoader가 적재 직후 채움
+);
+
+CREATE INDEX IF NOT EXISTS idx_seed_sets_filter
+    ON seed_sets(category, language, difficulty);
+CREATE INDEX IF NOT EXISTS idx_seed_sets_vec
+    ON seed_sets USING hnsw (embedding vector_cosine_ops);
