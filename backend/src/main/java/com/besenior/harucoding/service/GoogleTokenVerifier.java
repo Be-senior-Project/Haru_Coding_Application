@@ -38,7 +38,7 @@ public class GoogleTokenVerifier {
      */
     public GoogleTokenVerifier(
             RestTemplate restTemplate,
-            @Value("${spring.security.oauth2.client.registration.google.client-id:}") String clientIds) {
+            @Value("${google.client-ids:}") String clientIds) {
         this.restTemplate = restTemplate;
         this.allowedClientIds = clientIds == null ? Set.of()
                 : Arrays.stream(clientIds.split(","))
