@@ -8,6 +8,7 @@ import com.besenior.harucoding.global.enums.ProblemType;
 import com.besenior.harucoding.global.enums.XpReason;
 import com.besenior.harucoding.global.exception.CustomException;
 import com.besenior.harucoding.global.exception.ErrorCode;
+import com.besenior.harucoding.global.util.AnswerLimits;
 import com.besenior.harucoding.generation.verify.CodeVerifier;
 import com.besenior.harucoding.generation.verify.VerifyResult;
 import com.besenior.harucoding.repository.*;
@@ -62,6 +63,7 @@ public class ProblemService {
     // ── 풀이 제출(채점 + 기록) ───────────────────────────────────
     @Transactional
     public AttemptResultResponse attempt(Long userId, Long problemId, AttemptRequest request) {
+        AnswerLimits.check(request.getAnswer());
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         Problem problem = problemRepository.findById(problemId)
@@ -115,6 +117,7 @@ public class ProblemService {
     // ── 코드 실행 (SOLVE-007, 채점 아님 — 이력에 남기지 않는다) ──
     @Transactional(readOnly = true)
     public VerifyResult run(Long problemId, Object answer) {
+        AnswerLimits.check(answer);
         Problem problem = problemRepository.findById(problemId)
                 .orElseThrow(() -> new CustomException(ErrorCode.PROBLEM_NOT_FOUND));
 

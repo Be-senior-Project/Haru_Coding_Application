@@ -10,6 +10,7 @@ import com.besenior.harucoding.global.enums.DifficultyLevel;
 import com.besenior.harucoding.global.enums.XpReason;
 import com.besenior.harucoding.global.exception.CustomException;
 import com.besenior.harucoding.global.exception.ErrorCode;
+import com.besenior.harucoding.global.util.AnswerLimits;
 import com.besenior.harucoding.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -123,6 +124,10 @@ public class ProblemSetService {
 
     @Transactional
     public SubmitResultResponse submit(Long userId, Long setId, SubmitAnswerRequest request) {
+        if (request.getAnswers() != null) {
+            AnswerLimits.checkAll(request.getAnswers());
+            request.getAnswers().forEach(item -> AnswerLimits.check(item.getAnswer()));
+        }
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
