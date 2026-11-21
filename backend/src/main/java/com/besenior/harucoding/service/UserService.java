@@ -5,8 +5,7 @@ import com.besenior.harucoding.DTO.UserProfileResponse;
 import com.besenior.harucoding.entity.User;
 import com.besenior.harucoding.global.exception.CustomException;
 import com.besenior.harucoding.global.exception.ErrorCode;
-import com.besenior.harucoding.repository.UserProblemRecordRepository;
-import com.besenior.harucoding.repository.UserRepository;
+import com.besenior.harucoding.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +17,12 @@ public class UserService {
     private final UserRepository userRepository;
     private final UserProblemRecordRepository recordRepository;
     private final NotificationService notificationService;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final ProblemScrapRepository problemScrapRepository;
+    private final UserStreakLogRepository streakLogRepository;
+    private final UserXpLogRepository xpLogRepository;
+    private final UserCategoryStatRepository categoryStatRepository;
+    private final NotificationRepository notificationRepository;
 
     @Transactional(readOnly = true)
     public UserProfileResponse getProfile(Long userId) {
@@ -57,5 +62,20 @@ public class UserService {
         user.updateOnboarding(codingLevel, cotePrepared);
         userRepository.save(user);
         notificationService.notifyWelcome(userId);
+    }
+
+    @Transactional
+    public void deleteAccount(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        notificationRepository.deleteAllByUserId(userId);
+        problemScrapRepository.deleteAllByUserId(userId);
+        recordRepository.deleteAllByUserId(userId);
+        streakLogRepository.deleteAllByUserId(userId);
+        xpLogRepository.deleteAllByUserId(userId);
+        categoryStatRepository.deleteAllByUserId(userId);
+        refreshTokenRepository.deleteByUserId(userId);
+        userRepository.delete(user);
     }
 }

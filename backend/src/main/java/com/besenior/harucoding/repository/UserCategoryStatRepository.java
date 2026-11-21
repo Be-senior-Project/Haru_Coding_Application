@@ -10,4 +10,6 @@ public interface UserCategoryStatRepository extends JpaRepository<UserCategorySt
     List<UserCategoryStat> findByUserId(Long userId);
 
     Optional<UserCategoryStat> findByUserIdAndTopicId(Long userId, Long topicId);
+
+    void deleteAllByUserId(Long userId);
 }

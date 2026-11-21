@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ProblemSetService {
+
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final ProblemSetRepository problemSetRepository;
     private final ProblemRepository problemRepository;
@@ -48,7 +51,7 @@ public class ProblemSetService {
     @Transactional(readOnly = true)
     public ProblemSetResponse getTodaySet() {
         ProblemSet set = problemSetRepository
-                .findByTargetDateWithItems(LocalDate.now())
+                .findByTargetDateWithItems(LocalDate.now(KST))
                 .orElseThrow(() -> new CustomException(ErrorCode.PROBLEM_SET_NOT_FOUND));
         return ProblemSetResponse.from(set, false); // 정답 미포함
     }
@@ -60,7 +63,7 @@ public class ProblemSetService {
      */
     @Transactional
     public ProblemSetResponse ensureTodaySet(Long userId) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(KST);
 
         var existing = problemSetRepository.findByTargetDateWithItems(today);
         if (existing.isPresent()) {
@@ -185,18 +188,22 @@ public class ProblemSetService {
         boolean streakUpdated = updateStreak(user);
         if (streakUpdated) xpEarned += XP_STREAK_BONUS;
 
-        // XP 로그 저장
+        // XP 로그 저장 + User 반영
         if (xpEarned > 0) {
             xpLogRepository.save(UserXpLog.builder()
                     .user(user).xpAmount(xpEarned).reason(XpReason.SOLVE_CORRECT).build());
+            user.addXp(xpEarned);
         }
+
+        int currentStreak = getCurrentStreak(user.getId());
+        user.updateStreakDays(currentStreak);
 
         return SubmitResultResponse.builder()
                 .totalProblems(request.getAnswers().size())
                 .correctCount(correctCount)
                 .xpEarned(xpEarned)
                 .streakUpdated(streakUpdated)
-                .currentStreak(user.getStreakDays())
+                .currentStreak(currentStreak)
                 .results(results)
                 .build();
     }
@@ -206,8 +213,19 @@ public class ProblemSetService {
         return problem.getAnswer().toString().equalsIgnoreCase(userAnswer.toString());
     }
 
+    private int getCurrentStreak(Long userId) {
+        return streakLogRepository.findLatestByUserId(userId)
+                .filter(log -> {
+                    LocalDate last = log.getStreakDate();
+                    LocalDate today = LocalDate.now(KST);
+                    return last.equals(today) || last.equals(today.minusDays(1));
+                })
+                .map(UserStreakLog::getStreakCount)
+                .orElse(0);
+    }
+
     private boolean updateStreak(User user) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(KST);
         if (streakLogRepository.findByUserIdAndStreakDate(user.getId(), today).isPresent()) {
             return false; // 오늘 이미 기록됨
         }

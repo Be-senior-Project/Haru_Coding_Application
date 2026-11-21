@@ -37,6 +37,16 @@ public class ScrapController {
         return ApiResponse.success(Map.of("scrapped", scrapped));
     }
 
+    /** 스크랩 해제 전용. 이미 해제된 상태여도 성공 반환. */
+    @DeleteMapping("/{problemId}")
+    public ApiResponse<Map<String, Boolean>> removeScrap(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long problemId) {
+        Long userId = jwtProvider.getUserId(token.replace("Bearer ", ""));
+        scrapService.removeScrap(userId, problemId);
+        return ApiResponse.success(Map.of("scrapped", false));
+    }
+
     /** 특정 문제의 스크랩 여부 (문제 풀이 화면 북마크 아이콘 초기 상태용). */
     @GetMapping("/{problemId}")
     public ApiResponse<Map<String, Boolean>> isScrapped(

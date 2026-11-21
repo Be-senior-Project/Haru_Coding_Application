@@ -2,6 +2,7 @@ package com.besenior.harucoding.service;
 
 import com.besenior.harucoding.DTO.AttemptRequest;
 import com.besenior.harucoding.DTO.AttemptResultResponse;
+import com.besenior.harucoding.DTO.HintResponse;
 import com.besenior.harucoding.DTO.ProblemResponse;
 import com.besenior.harucoding.entity.*;
 import com.besenior.harucoding.global.enums.ProblemType;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
@@ -29,6 +31,8 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class ProblemService {
+
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final ProblemRepository problemRepository;
     private final UserRepository userRepository;
@@ -39,6 +43,7 @@ public class ProblemService {
     private final TopicRepository topicRepository;
     private final ObjectMapper objectMapper;
     private final CodeVerifier codeVerifier;
+    private final LeagueService leagueService;
 
     private static final int XP_PER_CORRECT = 10;
     private static final int XP_STREAK_BONUS = 5;
@@ -49,6 +54,17 @@ public class ProblemService {
         Problem p = problemRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.PROBLEM_NOT_FOUND));
         return ProblemResponse.from(p, false); // 풀이 전: 정답 미포함
+    }
+
+    @Transactional(readOnly = true)
+    public HintResponse getHint(Long id) {
+        Problem p = problemRepository.findById(id)
+                .orElseThrow(() -> new CustomException(ErrorCode.PROBLEM_NOT_FOUND));
+        return HintResponse.builder()
+                .hint1(p.getHint1())
+                .hint2(p.getHint2())
+                .hint3(p.getHint3())
+                .build();
     }
 
     @Transactional(readOnly = true)
@@ -100,11 +116,12 @@ public class ProblemService {
             if (updateStreak(user)) xpEarned += XP_STREAK_BONUS;
             xpLogRepository.save(UserXpLog.builder()
                     .user(user).xpAmount(xpEarned).reason(XpReason.SOLVE_CORRECT).build());
+            user.addXp(xpEarned);
+            leagueService.addScore(userId, xpEarned);
         }
 
-        int currentStreak = streakLogRepository.findLatestByUserId(userId)
-                .map(UserStreakLog::getStreakCount)
-                .orElse(0);
+        int currentStreak = getCurrentStreak(userId);
+        user.updateStreakDays(currentStreak);
 
         return AttemptResultResponse.builder()
                 .problemId(problem.getId())
@@ -143,6 +160,12 @@ public class ProblemService {
      * (실행 불가 — 스켈레톤/시그니처/IO 누락 또는 내부오류 — 시에만 문자열 비교로 폴백)
      */
     private GradeOutcome grade(Problem problem, Object userAnswer) {
+        // 빈칸 문제: IO 예시 1개만으로는 오답을 걸러내지 못하므로 빈칸별 문자열 비교로 채점
+        if (problem.getType() == ProblemType.FILL_IN_THE_BLANK) {
+            log.info("채점[빈칸비교]: 빈칸별 문자열 비교 사용");
+            boolean correct = checkAnswer(problem.getAnswer(), userAnswer);
+            return new GradeOutcome(correct, correct ? 1 : 0, 1);
+        }
         try {
             ObjectNode node = buildVerifyNode(problem, userAnswer);
             if (node != null) {
@@ -271,9 +294,20 @@ public class ProblemService {
         return s == null ? "" : s.replaceAll("\\s+", "");
     }
 
+    private int getCurrentStreak(Long userId) {
+        return streakLogRepository.findLatestByUserId(userId)
+                .filter(log -> {
+                    LocalDate last = log.getStreakDate();
+                    LocalDate today = LocalDate.now(KST);
+                    return last.equals(today) || last.equals(today.minusDays(1));
+                })
+                .map(UserStreakLog::getStreakCount)
+                .orElse(0);
+    }
+
     // ── 스트릭 갱신 (오늘 첫 정답이면 true) ──────────────────────
     private boolean updateStreak(User user) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(KST);
         if (streakLogRepository.findByUserIdAndStreakDate(user.getId(), today).isPresent()) {
             return false;
         }

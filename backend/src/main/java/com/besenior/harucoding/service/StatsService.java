@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,9 +47,7 @@ public class StatsService {
                 : Math.round((double) correctCount / totalSolved * 1000) / 10.0;
 
         // 현재 스트릭 (기간과 무관하게 연속 학습일은 항상 전체 기준)
-        int currentStreak = streakLogRepository.findLatestByUserId(userId)
-                .map(UserStreakLog::getStreakCount)
-                .orElse(0);
+        int currentStreak = getCurrentStreak(userId);
 
         // 주간 활동 (이번 주 월~일) — 탭과 무관하게 항상 최근 7일 위젯
         List<Integer> weeklyActivity = getWeeklyActivity(userId);
@@ -79,9 +78,11 @@ public class StatsService {
                 .build();
     }
 
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
     /** period(ALL|WEEK|MONTH|YEAR) → 집계 시작 시각. ALL 또는 알 수 없는 값이면 null(제한 없음). */
     private LocalDateTime periodStart(String period) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(KST);
         return switch (period == null ? "ALL" : period.toUpperCase()) {
             case "WEEK" -> today.with(DayOfWeek.MONDAY).atStartOfDay();
             case "MONTH" -> today.withDayOfMonth(1).atStartOfDay();
@@ -116,8 +117,20 @@ public class StatsService {
         return result;
     }
 
+    /** 마지막 학습일이 오늘 또는 어제가 아니면 streak는 0 */
+    private int getCurrentStreak(Long userId) {
+        return streakLogRepository.findLatestByUserId(userId)
+                .filter(log -> {
+                    LocalDate last = log.getStreakDate();
+                    LocalDate today = LocalDate.now(KST);
+                    return last.equals(today) || last.equals(today.minusDays(1));
+                })
+                .map(UserStreakLog::getStreakCount)
+                .orElse(0);
+    }
+
     private List<Integer> getWeeklyActivity(Long userId) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(KST);
         LocalDate monday = today.with(DayOfWeek.MONDAY);
 
         List<UserProblemRecord> records = recordRepository.findByUserIdOrderBySolvedAtDesc(userId);
@@ -125,7 +138,7 @@ public class StatsService {
         // 날짜별 풀이 수 집계
         Map<LocalDate, Long> countByDate = records.stream()
                 .collect(Collectors.groupingBy(
-                        r -> r.getSolvedAt().toLocalDate(),
+                        r -> r.getSolvedAt().atZone(KST).toLocalDate(),
                         Collectors.counting()
                 ));
 

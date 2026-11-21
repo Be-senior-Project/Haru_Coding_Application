@@ -79,6 +79,15 @@ public class Problem {
     @Column(name = "hidden_tests", columnDefinition = "jsonb")
     private List<Map<String, String>> hiddenTests;
 
+    @Column(columnDefinition = "TEXT")
+    private String hint1;
+
+    @Column(columnDefinition = "TEXT")
+    private String hint2;
+
+    @Column(columnDefinition = "TEXT")
+    private String hint3;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -88,7 +97,8 @@ public class Problem {
                    int difficulty, String language, String title, String description,
                    List<String> constraints, Map<String, String> ioExample,
                    String codeSkeleton, Object answer, String explanation,
-                   String conceptExplanation, List<Map<String, String>> hiddenTests) {
+                   String conceptExplanation, List<Map<String, String>> hiddenTests,
+                   String hint1, String hint2, String hint3) {
         this.setId = setId;
         this.type = type;
         this.category = category;
@@ -104,5 +114,8 @@ public class Problem {
         this.explanation = explanation;
         this.conceptExplanation = conceptExplanation;
         this.hiddenTests = hiddenTests;
+        this.hint1 = hint1;
+        this.hint2 = hint2;
+        this.hint3 = hint3;
     }
 }

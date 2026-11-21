@@ -37,6 +37,13 @@ public class ScrapService {
         return problemScrapRepository.existsByUserIdAndProblemId(userId, problemId);
     }
 
+    /** 스크랩 해제 전용. 이미 해제된 상태면 아무 일도 하지 않는다. */
+    @Transactional
+    public void removeScrap(Long userId, Long problemId) {
+        problemScrapRepository.findByUserIdAndProblemId(userId, problemId)
+                .ifPresent(problemScrapRepository::delete);
+    }
+
     /**
      * 스크랩 토글. 이미 있으면 해제, 없으면 등록한다.
      * 등록/해제를 따로 두면 클라이언트가 현재 상태를 먼저 알아야 해서 왕복이 늘고,

@@ -37,6 +37,7 @@ class ProblemServiceGradeTest {
     @Mock private UserXpLogRepository xpLogRepository;
     @Mock private TopicRepository topicRepository;
     @Mock private CodeVerifier codeVerifier;
+    @Mock private LeagueService leagueService;
 
     private static final List<Map<String, String>> HIDDEN =
             List.of(Map.of("input", "a = 5\nb = 7", "output", "12"));
@@ -67,7 +68,7 @@ class ProblemServiceGradeTest {
 
         ProblemService service = new ProblemService(problemRepository, userRepository, recordRepository,
                 streakLogRepository, categoryStatRepository, xpLogRepository, topicRepository,
-                new ObjectMapper(), codeVerifier);
+                new ObjectMapper(), codeVerifier, leagueService);
         AttemptResultResponse res = service.attempt(1L, 10L, request("return 3"));
 
         assertThat(res.isCorrect()).isFalse();
