@@ -28,8 +28,10 @@ import java.util.concurrent.TimeUnit;
  * 여기서 실행하는 코드는 사용자가 제출한 코드와 LLM이 만든 코드라 믿을 수 없다. 그래서
  * - 서버 환경변수(OpenAI 키, 암호화 키 등)를 넘기지 않고 실행에 필요한 값만 넘긴다.
  * - CODE_RUNNER_USER가 설정된 리눅스 컨테이너에서는 권한 없는 계정으로 바꿔(setpriv) 실행하고,
- *   프로세스 수·파일 크기·열린 파일 수를 제한한다(prlimit). 서버와 같은 계정으로 돌리면
+ *   프로세스 수·파일 크기·열린 파일 수·메모리(주소 공간)를 제한한다(prlimit). 서버와 같은 계정으로 돌리면
  *   /proc/1/environ 등으로 서버의 비밀값을 읽을 수 있기 때문이다.
+ * - 같은 경우 인터넷 소켓 생성도 막는다(nonet, backend/sandbox/nonet.c). 막지 않으면 외부로 데이터를 보내거나
+ *   같은 네트워크의 DB·클라우드 메타데이터 주소에 접속을 시도할 수 있다.
  */
 final class ProcessUtils {
 
@@ -59,6 +61,15 @@ final class ProcessUtils {
 
     static Result run(List<String> command, File workDir, int timeoutSec)
             throws IOException, InterruptedException {
+        return run(command, workDir, timeoutSec, null);
+    }
+
+    /**
+     * @param addressSpaceLimitBytes 격리 실행 시 프로세스 주소 공간(메모리) 상한. null이면 걸지 않는다.
+     *                               JVM은 시작할 때 큰 주소 공간을 예약하므로 Java에는 쓰지 않고 -Xmx로 제한한다.
+     */
+    static Result run(List<String> command, File workDir, int timeoutSec, Long addressSpaceLimitBytes)
+            throws IOException, InterruptedException {
         String runnerUser = blankToNull(System.getenv(RUNNER_USER_ENV));
         if (runnerUser != null) {
             requireSandbox(runnerUser);
@@ -67,7 +78,7 @@ final class ProcessUtils {
             }
         }
 
-        ProcessBuilder pb = new ProcessBuilder(sandboxed(command, runnerUser));
+        ProcessBuilder pb = new ProcessBuilder(sandboxed(command, runnerUser, addressSpaceLimitBytes));
         if (workDir != null) pb.directory(workDir);
         Map<String, String> env = pb.environment();
         Map<String, String> childEnv = childEnvironment(System.getenv(), workDir);
@@ -115,8 +126,11 @@ final class ProcessUtils {
         return env;
     }
 
-    /** runnerUser가 있으면 prlimit(자원 제한) + setpriv(계정 전환)로 감싼 명령을, 없으면 원래 명령을 돌려준다. */
-    static List<String> sandboxed(List<String> command, String runnerUser) {
+    /**
+     * runnerUser가 있으면 prlimit(자원 제한) → setpriv(계정 전환) → nonet(네트워크 차단) 순으로 감싼 명령을,
+     * 없으면 원래 명령을 돌려준다. 세 도구 모두 exec로 이어지므로 실제 사용자 프로그램이 같은 프로세스가 된다.
+     */
+    static List<String> sandboxed(List<String> command, String runnerUser, Long addressSpaceLimitBytes) {
         if (runnerUser == null) {
             return command;
         }
@@ -124,13 +138,19 @@ final class ProcessUtils {
                 "prlimit",
                 "--nproc=" + LIMIT_NPROC,
                 "--fsize=" + LIMIT_FSIZE_BYTES,
-                "--nofile=" + LIMIT_NOFILE,
+                "--nofile=" + LIMIT_NOFILE));
+        if (addressSpaceLimitBytes != null) {
+            wrapped.add("--as=" + addressSpaceLimitBytes);
+        }
+        wrapped.addAll(List.of(
                 "--",
                 "setpriv",
                 "--reuid=" + runnerUser,
                 "--regid=" + runnerUser,
                 "--clear-groups",
                 "--no-new-privs",
+                "--",
+                "nonet",
                 "--"));
         wrapped.addAll(command);
         return wrapped;
@@ -169,12 +189,12 @@ final class ProcessUtils {
         Boolean available = sandboxAvailable;
         if (available == null) {
             available = isLinux() && "root".equals(System.getProperty("user.name"))
-                    && onPath("setpriv") && onPath("prlimit");
+                    && onPath("setpriv") && onPath("prlimit") && onPath("nonet");
             sandboxAvailable = available;
         }
         if (!available) {
             throw new IllegalStateException(RUNNER_USER_ENV + "=" + runnerUser
-                    + " 로 설정됐지만 격리 실행을 할 수 없습니다 (리눅스 root 실행, setpriv·prlimit 필요)");
+                    + " 로 설정됐지만 격리 실행을 할 수 없습니다 (리눅스 root 실행, setpriv·prlimit·nonet 필요)");
         }
     }
 

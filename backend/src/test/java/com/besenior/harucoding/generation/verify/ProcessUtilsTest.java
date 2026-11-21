@@ -53,19 +53,30 @@ class ProcessUtilsTest {
     void 격리_계정이_없으면_명령을_그대로_실행한다() {
         List<String> cmd = List.of("python3", "solution.py");
 
-        assertThat(ProcessUtils.sandboxed(cmd, null)).isEqualTo(cmd);
+        assertThat(ProcessUtils.sandboxed(cmd, null, 512L)).isEqualTo(cmd);
     }
 
     @Test
-    void 격리_계정이_있으면_자원_제한과_계정_전환으로_감싼다() {
-        List<String> wrapped = ProcessUtils.sandboxed(List.of("python3", "solution.py"), "coderunner");
+    void 격리_계정이_있으면_자원_제한_계정_전환_네트워크_차단_순으로_감싼다() {
+        List<String> wrapped = ProcessUtils.sandboxed(List.of("python3", "solution.py"), "coderunner", null);
 
         assertThat(wrapped.get(0)).isEqualTo("prlimit");
         assertThat(wrapped).contains("setpriv", "--reuid=coderunner", "--regid=coderunner",
                 "--clear-groups", "--no-new-privs");
+        assertThat(wrapped.indexOf("setpriv")).isLessThan(wrapped.indexOf("nonet"));
         // 실제 명령은 맨 끝에, 원래 순서 그대로 붙어야 한다
-        assertThat(wrapped.subList(wrapped.size() - 3, wrapped.size()))
-                .containsExactly("--", "python3", "solution.py");
+        assertThat(wrapped.subList(wrapped.size() - 4, wrapped.size()))
+                .containsExactly("nonet", "--", "python3", "solution.py");
+    }
+
+    @Test
+    void 메모리_상한을_주면_주소_공간_제한을_추가한다() {
+        List<String> withLimit = ProcessUtils.sandboxed(List.of("python3", "s.py"), "coderunner", 536_870_912L);
+        List<String> withoutLimit = ProcessUtils.sandboxed(List.of("java", "Main"), "coderunner", null);
+
+        assertThat(withLimit).contains("--as=536870912");
+        assertThat(withLimit.indexOf("--as=536870912")).isLessThan(withLimit.indexOf("setpriv"));
+        assertThat(withoutLimit).noneMatch(s -> s.startsWith("--as="));
     }
 
     @Test

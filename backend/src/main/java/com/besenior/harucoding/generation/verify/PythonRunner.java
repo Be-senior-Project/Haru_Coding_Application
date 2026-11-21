@@ -13,6 +13,8 @@ public class PythonRunner implements Runner {
 
     private static final int EXEC_TIMEOUT = 5;
     private static final int PROBE_TIMEOUT = 5;
+    /** 사용자 코드 하나가 서버 메모리를 다 쓰지 못하게 하는 주소 공간 상한(격리 실행 시에만 적용). */
+    private static final long EXEC_MEMORY_LIMIT = 512L * 1024 * 1024;
 
     /** 인터프리터 이름은 OS마다 다르다. macOS·Linux는 python3, Windows 설치본은 대개 python 또는 py. */
     private static final List<String> PYTHON_CANDIDATES = List.of("python3", "python", "py");
@@ -74,7 +76,7 @@ public class PythonRunner implements Runner {
             Files.writeString(script, program);
 
             ProcessUtils.Result r = ProcessUtils.run(
-                    List.of(pythonCommand(), script.toString()), tmp.toFile(), EXEC_TIMEOUT);
+                    List.of(pythonCommand(), script.toString()), tmp.toFile(), EXEC_TIMEOUT, EXEC_MEMORY_LIMIT);
 
             if (r.timedOut()) {
                 return VerifyResult.fail("timeout", "실행 시간 " + EXEC_TIMEOUT + "초 초과");

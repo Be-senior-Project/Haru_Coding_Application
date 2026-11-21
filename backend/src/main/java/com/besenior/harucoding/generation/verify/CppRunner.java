@@ -12,6 +12,9 @@ public class CppRunner implements Runner {
 
     private static final int COMPILE_TIMEOUT = 20;
     private static final int EXEC_TIMEOUT = 5;
+    // 주소 공간 상한(격리 실행 시에만 적용). 컴파일러는 bits/stdc++.h 처리에 메모리를 많이 써서 더 크게 둔다.
+    private static final long COMPILE_MEMORY_LIMIT = 1536L * 1024 * 1024;
+    private static final long EXEC_MEMORY_LIMIT = 512L * 1024 * 1024;
 
     @Override
     public VerifyResult run(String answerCode, String ioInput, String expectedOutput, String signature) {
@@ -37,7 +40,7 @@ public class CppRunner implements Runner {
 
             ProcessUtils.Result compile = ProcessUtils.run(
                     List.of("g++", "-std=c++17", "-O2", "-o", bin.toString(), src.toString()),
-                    tmp.toFile(), COMPILE_TIMEOUT);
+                    tmp.toFile(), COMPILE_TIMEOUT, COMPILE_MEMORY_LIMIT);
             if (compile.timedOut()) {
                 return VerifyResult.fail("compile_error", "컴파일 시간 " + COMPILE_TIMEOUT + "초 초과");
             }
@@ -46,7 +49,7 @@ public class CppRunner implements Runner {
             }
 
             ProcessUtils.Result exec = ProcessUtils.run(
-                    List.of(bin.toString()), tmp.toFile(), EXEC_TIMEOUT);
+                    List.of(bin.toString()), tmp.toFile(), EXEC_TIMEOUT, EXEC_MEMORY_LIMIT);
             if (exec.timedOut()) {
                 return VerifyResult.fail("timeout", "실행 시간 " + EXEC_TIMEOUT + "초 초과");
             }
