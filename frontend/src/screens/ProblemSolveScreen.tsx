@@ -1,7 +1,8 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   TextInput, ScrollView, Alert, ActivityIndicator, Modal,
+  Keyboard, KeyboardAvoidingView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -93,6 +94,21 @@ export default function ProblemSolveScreen() {
   }, []);
   const elapsedSec = Math.max(0, Math.floor((nowTick - startedAt) / 1000));
   const mmss = `${String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:${String(elapsedSec % 60).padStart(2, '0')}`;
+
+  // 키보드가 올라오면 입력 중인 칸을 키보드 위로 스크롤한다.
+  // Android 15 이상(edge-to-edge)에서는 adjustResize만으로 화면이 줄지 않아, 아래 KeyboardAvoidingView와 함께 직접 처리한다.
+  // ScrollView가 상태 표시줄 아래(insets.top)에서 시작하므로 그만큼과 여유 16을 더한다.
+  const scrollRef = useRef<ScrollView>(null);
+  const topInset = insets.top;
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidShow', () => {
+      const input = TextInput.State.currentlyFocusedInput();
+      if (input) {
+        scrollRef.current?.scrollResponderScrollNativeHandleToKeyboard(input, topInset + 16, true);
+      }
+    });
+    return () => sub.remove();
+  }, [topInset]);
 
   // 채점 결과 (목=로컬, 실=백엔드 응답)
   const [isCorrect, setIsCorrect] = useState(false);
@@ -357,9 +373,13 @@ export default function ProblemSolveScreen() {
 
   return (
     <>
+    {/* 상단 여백(insets.top)을 스크롤 영역 밖에 둬야 스크롤한 내용이 상태 표시줄 밑으로 들어가지 않는다 */}
+    <KeyboardAvoidingView style={[styles.container, {paddingTop: insets.top}]} behavior="padding">
     <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, {paddingTop: insets.top + 16}]}>
+      ref={scrollRef}
+      style={styles.scroll}
+      contentContainerStyle={[styles.content, styles.contentTop]}
+      keyboardShouldPersistTaps="handled">
 
       {/* 상단 바 */}
       <View style={styles.navRow}>
@@ -531,6 +551,7 @@ export default function ProblemSolveScreen() {
         </View>
       )}
     </ScrollView>
+    </KeyboardAvoidingView>
 
     {/* AI 힌트 모달 */}
     <Modal
@@ -693,8 +714,10 @@ function CodeAnswer({value, submitted, placeholder, onChange}: {
 function makeStyles(c: Colors, fs: number) {
   return StyleSheet.create({
     container: {flex: 1, backgroundColor: c.bg},
+    scroll: {flex: 1},
     center: {justifyContent: 'center', alignItems: 'center'},
     content: {padding: 20, paddingBottom: 60},
+    contentTop: {paddingTop: 16},
     // 상단 네비 행
     navRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18},
     navTitle: {fontSize: 17 * fs, fontWeight: '800', color: c.text},

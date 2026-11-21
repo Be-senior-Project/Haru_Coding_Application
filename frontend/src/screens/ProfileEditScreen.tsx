@@ -1,7 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Alert, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform,
+  Alert, ActivityIndicator, ScrollView, KeyboardAvoidingView,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
@@ -94,11 +94,11 @@ export default function ProfileEditScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    // Android 15 이상(edge-to-edge)은 adjustResize만으로 화면이 줄지 않아 Android에서도 padding으로 키보드를 피한다.
+    // 상단 여백(insets.top)은 스크롤 영역 밖에 둬서 스크롤한 내용이 상태 표시줄 밑으로 들어가지 않게 한다.
+    <KeyboardAvoidingView style={[styles.container, {paddingTop: insets.top}]} behavior="padding">
       <ScrollView
-        contentContainerStyle={[styles.content, {paddingTop: insets.top + 12}]}
+        contentContainerStyle={[styles.content, styles.contentTop]}
         keyboardShouldPersistTaps="handled">
 
         {/* 헤더 */}
@@ -196,6 +196,7 @@ function makeStyles(c: Colors, fs: number) {
     container: {flex: 1, backgroundColor: c.bg},
     center: {justifyContent: 'center', alignItems: 'center'},
     content: {paddingHorizontal: 24, paddingBottom: 40},
+    contentTop: {paddingTop: 12},
 
     header: {flexDirection: 'row', alignItems: 'center', marginBottom: 24},
     headerTitle: {flex: 1, textAlign: 'center', fontSize: 18 * fs, fontWeight: '800', color: c.text},

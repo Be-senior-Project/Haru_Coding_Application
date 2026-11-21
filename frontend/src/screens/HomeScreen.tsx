@@ -153,7 +153,9 @@ export default function HomeScreen() {
   const goalPct = Math.round((goalSolved / dailyGoal) * 100);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, {paddingTop: insets.top + 8}]}>
+    // 상단 여백(insets.top)을 스크롤 영역 밖에 둬야 스크롤한 내용이 상태 표시줄 밑으로 들어가지 않는다
+    <View style={[styles.container, {paddingTop: insets.top}]}>
+    <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, styles.contentTop]}>
       {/* 헤더 */}
       <View style={styles.header}>
         {/* 오른쪽 알림 아이콘과 폭을 맞춰 브랜드명을 가운데 유지 */}
@@ -297,6 +299,7 @@ export default function HomeScreen() {
 
       <View style={styles.bottomSpacer} />
     </ScrollView>
+    </View>
   );
 }
 
@@ -317,7 +320,9 @@ function Stat({icon, iconColor, value, label, colors, fs}: {
 function makeStyles(c: Colors, fs: number) {
   return StyleSheet.create({
     container: {flex: 1, backgroundColor: c.bg},
+    scroll: {flex: 1},
     content: {padding: 20, paddingBottom: 32},
+    contentTop: {paddingTop: 8},
 
     // 헤더
     header: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16},

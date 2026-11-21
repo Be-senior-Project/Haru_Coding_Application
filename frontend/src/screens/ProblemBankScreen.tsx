@@ -80,9 +80,11 @@ export default function ProblemBankScreen() {
       : `${filtered.length}개의 문제가 기다리고 있어요`;
 
   return (
+    // 상단 여백(insets.top)을 스크롤 영역 밖에 둬야 스크롤한 내용이 상태 표시줄 밑으로 들어가지 않는다
+    <View style={[styles.container, {paddingTop: insets.top}]}>
     <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, {paddingTop: insets.top + 20}]}>
+      style={styles.scroll}
+      contentContainerStyle={[styles.content, styles.contentTop]}>
       <Text style={styles.title}>문제 은행</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
 
@@ -169,13 +171,16 @@ export default function ProblemBankScreen() {
         </>
       )}
     </ScrollView>
+    </View>
   );
 }
 
 function makeStyles(c: Colors, fs: number) {
   return StyleSheet.create({
     container: {flex: 1, backgroundColor: c.bg},
+    scroll: {flex: 1},
     content: {padding: 20, paddingBottom: 40},
+    contentTop: {paddingTop: 20},
 
     title: {fontSize: 22 * fs, fontWeight: '800', color: c.text, marginBottom: 2},
     subtitle: {fontSize: 13 * fs, color: c.subText, marginBottom: 16},

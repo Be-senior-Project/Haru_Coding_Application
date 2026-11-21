@@ -57,9 +57,11 @@ export default function LeagueScreen() {
   const tierLabel = TIER_KO[data.myTier] ?? data.myTier;
 
   return (
+    // 상단 여백(insets.top)을 스크롤 영역 밖에 둬야 스크롤한 내용이 상태 표시줄 밑으로 들어가지 않는다
+    <View style={[styles.container, {paddingTop: insets.top}]}>
     <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, {paddingTop: insets.top + 8}]}
+      style={styles.scroll}
+      contentContainerStyle={[styles.content, styles.contentTop]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}>
 
       <Text style={styles.headerTitle}>리그</Text>
@@ -130,13 +132,16 @@ export default function LeagueScreen() {
 
       <View style={{height: 32}} />
     </ScrollView>
+    </View>
   );
 }
 
 function makeStyles(c: Colors, fs: number) {
   return StyleSheet.create({
     container: {flex: 1, backgroundColor: c.bg},
+    scroll: {flex: 1},
     content: {padding: 20},
+    contentTop: {paddingTop: 8},
     center: {flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', gap: 12},
     emptyText: {fontSize: 14 * fs, color: c.subText},
 
