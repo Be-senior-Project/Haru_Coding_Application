@@ -38,6 +38,8 @@ services:
       ENCRYPTION_SECRET_KEY: ${ENCRYPTION_SECRET_KEY}
       JWT_SECRET: ${JWT_SECRET}
       Haru_Coding_backend_CLIENT_ID: ${GOOGLE_CLIENT_ID:-dummy-client-id}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-}
+      GENERATION_DAILY_LIMIT: ${GENERATION_DAILY_LIMIT:-30}
     ports:
       - "8080:8080"
     restart: unless-stopped

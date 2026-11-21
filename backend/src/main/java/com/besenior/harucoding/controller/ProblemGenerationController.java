@@ -6,6 +6,7 @@ import com.besenior.harucoding.entity.Problem;
 import com.besenior.harucoding.generation.GenerationPipeline;
 import com.besenior.harucoding.generation.ProblemSetSessionService;
 import com.besenior.harucoding.global.jwt.JwtProvider;
+import com.besenior.harucoding.global.security.AdminKeyGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +26,7 @@ public class ProblemGenerationController {
     private final GenerationPipeline pipeline;
     private final ProblemSetSessionService sessionService;
     private final JwtProvider jwtProvider;
+    private final AdminKeyGuard adminKeyGuard;
 
     private static final List<String> ALL_TYPES =
             List.of("Implementation", "Debugging", "Fill-in-the-blank");
@@ -38,8 +40,12 @@ public class ProblemGenerationController {
         return ResponseEntity.ok(sessionService.startSet(userId, count));
     }
 
+    /** [관리] 파라미터로 문제를 직접 생성. 호출마다 OpenAI 비용이 들어 관리자 키(X-Admin-Key)가 필요하다. */
     @PostMapping("/generate")
-    public ResponseEntity<List<ProblemResponse>> generate(@RequestBody GenerateProblemRequest req) {
+    public ResponseEntity<List<ProblemResponse>> generate(
+            @RequestHeader(value = AdminKeyGuard.HEADER, required = false) String adminKey,
+            @RequestBody GenerateProblemRequest req) {
+        adminKeyGuard.check(adminKey);
         if (req.getCategory() == null || req.getDifficulty() == null || req.getLanguage() == null) {
             return ResponseEntity.badRequest().build();
         }

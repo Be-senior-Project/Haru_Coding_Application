@@ -5,6 +5,7 @@ import com.besenior.harucoding.DTO.SubmitAnswerRequest;
 import com.besenior.harucoding.DTO.SubmitResultResponse;
 import com.besenior.harucoding.entity.*;
 import com.besenior.harucoding.generation.GenerationPipeline;
+import com.besenior.harucoding.generation.GenerationQuota;
 import com.besenior.harucoding.global.enums.DifficultyLevel;
 import com.besenior.harucoding.global.enums.XpReason;
 import com.besenior.harucoding.global.exception.CustomException;
@@ -34,6 +35,7 @@ public class ProblemSetService {
     private final UserXpLogRepository xpLogRepository;
     private final TopicRepository topicRepository;
     private final GenerationPipeline generationPipeline;
+    private final GenerationQuota generationQuota;
     private final RecommendationService recommendationService;
 
     private static final int XP_PER_CORRECT = 10;
@@ -74,6 +76,10 @@ public class ProblemSetService {
         String language = mapLanguage(user.getPreferredLanguage());
         String category = difficulty == 0 ? "Basic/Introductory" : "Algorithm/Data Structure";
 
+        // 생성에 실패하면 다음 호출자가 다시 생성을 시도하므로, 반복 호출로 비용이 쌓이지 않게 한도를 건다
+        if (!generationQuota.tryConsume(userId, PROBLEMS_PER_SET)) {
+            throw new CustomException(ErrorCode.GENERATION_LIMIT_EXCEEDED);
+        }
         List<Problem> problems = generationPipeline.generateAndSave(
                 category, null, difficulty, language, ALL_TYPES, PROBLEMS_PER_SET);
         if (problems.isEmpty()) {
