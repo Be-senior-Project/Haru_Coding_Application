@@ -95,7 +95,7 @@ export default function ProfileScreen() {
       setProfile(null);
       setStreak(null);
       navigation.reset({index: 0, routes: [{name: 'Login'}]});
-    } catch (e) {
+    } catch {
       Alert.alert('탈퇴 실패', '잠시 후 다시 시도해 주세요.');
     }
   };

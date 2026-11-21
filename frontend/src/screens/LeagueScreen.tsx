@@ -56,10 +56,6 @@ export default function LeagueScreen() {
   const tc = tierColor(data.myTier);
   const tierLabel = TIER_KO[data.myTier] ?? data.myTier;
 
-  // 상위 3명과 내 근처 사이에 생략이 있는지 확인
-  const hasGap = data.members.length > 1 &&
-    data.members.some((m, i) => i > 0 && m.rank - data.members[i - 1].rank > 1);
-
   return (
     <ScrollView
       style={styles.container}
