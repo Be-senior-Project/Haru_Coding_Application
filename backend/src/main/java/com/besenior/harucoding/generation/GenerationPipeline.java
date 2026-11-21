@@ -125,8 +125,9 @@ public class GenerationPipeline {
         Map<String, String> io = new LinkedHashMap<>();
         JsonNode ioNode = p.path("IO Example");
         io.put("input", ioNode.path("input").asText(""));
-        JsonNode out = ioNode.path("output");
-        io.put("output", out.isTextual() ? out.asText() : out.toString());
+        // 출력이 문자열이 아니면(배열 등) 실행기 출력과 같은 형식("[1, 2, 3]")으로 저장한다.
+        // toString()("[1,2,3]")으로 저장하면 채점 때 비교가 어긋나 정답도 오답 처리된다.
+        io.put("output", CodeVerifier.outputText(ioNode.path("output")));
 
         // answer는 jsonb. 배열(빈칸)은 List로, 비배열(코드 문자열)은 JsonNode.toString()으로
         // 따옴표 포함 valid JSON 텍스트로 저장한다. (hypersistence가 String을 raw json으로 취급하므로

@@ -88,4 +88,32 @@ class GenerationPipelineHiddenTestsTest {
         verify(problemRepository).save(saved.capture());
         assertThat(saved.getValue().getHiddenTests()).isEqualTo(computed);
     }
+
+    @Test
+    void 문자열이_아닌_예시_출력은_채점과_같은_형식으로_저장한다() throws Exception {
+        // AI가 출력을 JSON 배열로 주면 "[1,2,3]"이 아니라 실행기 출력 형식 "[1, 2, 3]"으로 저장해야 정답이 맞게 채점된다
+        JsonNode set = om.readTree("""
+                {"Set": {"Set Id": "SET-2", "Concept Explanation": "개념"},
+                 "Problems": [{
+                   "Type": "Implementation", "Title": "앞에서 n개", "Description": "설명",
+                   "Signature": "def solution(n):",
+                   "IO Example": {"input": "n = 3", "output": [1, 2, 3]},
+                   "Code Skeleton": "def solution(n):\\n    {{CORE}}",
+                   "Answer": "    return list(range(1, n + 1))",
+                   "Explanation": "해설"}]}
+                """);
+        when(seedRetriever.buildFewShotExamples(anyString(), any(), anyInt(), anyString())).thenReturn("");
+        when(generationClient.generateSet(anyString(), any(), anyString(), anyString(), any(), anyInt(), anyString()))
+                .thenReturn(set);
+        when(codeVerifier.verify(any(), eq("Python"))).thenReturn(VerifyResult.pass("[1, 2, 3]"));
+        when(codeVerifier.computeOutputs(any(), eq("Python"), any())).thenReturn(List.of());
+        when(problemRepository.save(any(Problem.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        new GenerationPipeline(seedRetriever, generationClient, codeVerifier, embeddingService, problemRepository, om)
+                .generateAndSave("Basic/Introductory", null, 0, "Python", List.of("Implementation"), 1);
+
+        ArgumentCaptor<Problem> saved = ArgumentCaptor.forClass(Problem.class);
+        verify(problemRepository).save(saved.capture());
+        assertThat(saved.getValue().getIoExample().get("output")).isEqualTo("[1, 2, 3]");
+    }
 }

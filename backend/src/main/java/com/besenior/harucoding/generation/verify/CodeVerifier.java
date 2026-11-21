@@ -95,14 +95,46 @@ public class CodeVerifier {
         int total = inputs.size();
 
         ExecutionResult r = p.runner().execute(p.code(), inputs, p.signature());
-        int passed = countPassed(expected, r.outputs());
-        if (!r.ok()) {
-            return new GradeResult(false, passed, total, r.reason(), r.detail());
-        }
-        if (passed == total && r.outputs().size() == total) {
+        List<String> outputs = r.outputs();
+        int passed = countPassed(expected, outputs);
+        if (r.ok() && passed == total && outputs.size() == total) {
             return new GradeResult(true, total, total, null, null);
         }
-        return new GradeResult(false, passed, total, "output_mismatch", mismatchDetail(expected, r.outputs()));
+        if (!r.ok() && !"runtime_error".equals(r.reason())) {
+            // 컴파일 오류·시간 초과 등: 어느 테스트에서 났는지 알 수 없다. 컴파일 오류 메시지는 입력과 무관해 보여 준다.
+            String message = "compile_error".equals(r.reason()) ? clip(r.detail()) : null;
+            return new GradeResult(false, passed, total, r.reason(), r.detail(), null, message, null, null);
+        }
+        if (r.ok() && outputs.size() != total) {
+            String message = "출력 줄 수(" + outputs.size() + ")가 테스트 수(" + total
+                    + ")와 다릅니다. solution 안에서 print 등으로 출력하면 안 됩니다.";
+            return new GradeResult(false, passed, total, "output_mismatch", message, null, message, null, null);
+        }
+
+        int failed = firstFailed(expected, outputs);
+        if (failed < 0 || failed >= outputs.size()) {
+            // 출력이 나오기 전에 멈춤 = 그 테스트를 실행하다 오류. 실행기는 테스트마다 한 줄씩 바로 내보내므로
+            // 나온 출력 수가 곧 멈춘 테스트 번호다(모든 출력이 맞은 뒤에 난 오류면 번호를 알 수 없다).
+            // 숨겨진 테스트에서 난 오류 메시지는 입력값이 드러날 수 있어 보내지 않는다.
+            Integer at = failed < 0 ? null : failed;
+            String message = at != null && at == 0 ? clip(r.detail()) : null;
+            return new GradeResult(false, passed, total, "runtime_error", r.detail(), at, message, null, null);
+        }
+        if (failed == 0) {
+            return new GradeResult(false, passed, total, "output_mismatch",
+                    "expected: " + expected.get(0) + ", actual: " + outputs.get(0),
+                    0, null, expected.get(0), outputs.get(0));
+        }
+        return new GradeResult(false, passed, total, "output_mismatch",
+                "숨겨진 테스트 " + failed + "번의 출력이 다릅니다.", failed, null, null, null);
+    }
+
+    /** 앱에 보여 줄 오류 메시지의 최대 길이. */
+    static final int MAX_MESSAGE_CHARS = 1000;
+
+    private static String clip(String s) {
+        if (s == null || s.length() <= MAX_MESSAGE_CHARS) return s;
+        return s.substring(0, MAX_MESSAGE_CHARS) + "…";
     }
 
     /**
@@ -156,7 +188,7 @@ public class CodeVerifier {
 
             JsonNode io = problem.path("IO Example");
             String ioInput = io.path("input").asText();
-            String expected = expectedToString(io.path("output"));
+            String expected = outputText(io.path("output"));
 
             String codeSkeleton = problem.hasNonNull("Code Skeleton")
                     ? problem.get("Code Skeleton").asText() : null;
@@ -183,20 +215,14 @@ public class CodeVerifier {
         return passed;
     }
 
-    /** 틀린 첫 테스트를 알려준다. 예시(0번)는 공개된 값이라 보여주고, 숨겨진 테스트는 번호만 알려준다. */
-    private static String mismatchDetail(List<String> expected, List<String> outputs) {
-        if (outputs.size() != expected.size()) {
-            return "출력 줄 수(" + outputs.size() + ")가 테스트 수(" + expected.size()
-                    + ")와 다릅니다. solution 안에서 print 등으로 출력하면 안 됩니다.";
-        }
+    /** 처음 틀린 테스트 번호(0 = 예시). 출력이 모자라면 실행이 멈춘 자리. 모두 맞으면 -1. */
+    static int firstFailed(List<String> expected, List<String> outputs) {
         for (int i = 0; i < expected.size(); i++) {
-            if (!outputs.get(i).equals(expected.get(i))) {
-                return i == 0
-                        ? "expected: " + expected.get(0) + ", actual: " + outputs.get(0)
-                        : "숨겨진 테스트 " + i + "번의 출력이 다릅니다.";
+            if (i >= outputs.size() || !outputs.get(i).equals(expected.get(i))) {
+                return i;
             }
         }
-        return "출력이 다릅니다.";
+        return -1;
     }
 
     /** Answer: 배열이면 List<String>(빈칸), 아니면 String. */
@@ -209,8 +235,11 @@ public class CodeVerifier {
         return answer.asText();
     }
 
-    /** output 노드를 Runner 출력과 동일한 JSON(", " 구분) 문자열로 변환. */
-    private String expectedToString(JsonNode output) {
+    /**
+     * output 노드를 Runner 출력과 동일한 JSON(", " 구분) 문자열로 변환.
+     * 문제를 저장할 때도 이 형식을 써야 채점 때 비교가 맞는다(GenerationPipeline).
+     */
+    public static String outputText(JsonNode output) {
         // 모델이 이미 문자열로 적었으면 그대로 사용 (예: "15", "[1, 2, 3]")
         if (output.isTextual()) {
             return output.asText();
@@ -221,7 +250,7 @@ public class CodeVerifier {
     }
 
     /** Python json.dumps(ensure_ascii=False) 기본 형식과 동일하게 직렬화. */
-    private void writePy(StringBuilder sb, JsonNode n) {
+    private static void writePy(StringBuilder sb, JsonNode n) {
         if (n.isNull() || n.isMissingNode()) {
             sb.append("null");
         } else if (n.isTextual()) {
@@ -254,7 +283,7 @@ public class CodeVerifier {
         }
     }
 
-    private String escape(String s) {
+    private static String escape(String s) {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);

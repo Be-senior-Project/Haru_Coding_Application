@@ -111,6 +111,90 @@ class CodeVerifierGradeTest {
         assertThat(r.total()).isEqualTo(1);
     }
 
+    // ── 앱에 보여 줄 오답 이유 ─────────────────────────────────
+
+    @Test
+    void 예시_출력이_다르면_기대_출력과_내_출력을_알려준다() throws Exception {
+        FakeRunner runner = new FakeRunner(in -> ExecutionResult.success(List.of("4", "12", "0")));
+
+        GradeResult r = verifier(runner).grade(problem(), "Python", HIDDEN);
+
+        assertThat(r.reason()).isEqualTo("output_mismatch");
+        assertThat(r.failedTest()).isZero();
+        assertThat(r.expectedOutput()).isEqualTo("3");
+        assertThat(r.actualOutput()).isEqualTo("4");
+    }
+
+    @Test
+    void 숨겨진_테스트에서_틀리면_번호만_알려주고_값은_보내지_않는다() throws Exception {
+        FakeRunner runner = new FakeRunner(in -> ExecutionResult.success(List.of("3", "12", "5")));
+
+        GradeResult r = verifier(runner).grade(problem(), "Python", HIDDEN);
+
+        assertThat(r.failedTest()).isEqualTo(2);
+        assertThat(r.expectedOutput()).isNull();
+        assertThat(r.actualOutput()).isNull();
+        assertThat(r.message()).isNull();
+    }
+
+    @Test
+    void 숨겨진_테스트를_실행하다_난_오류의_메시지는_보내지_않는다() throws Exception {
+        // 오류 메시지에 숨겨진 입력값이 섞일 수 있다
+        FakeRunner runner = new FakeRunner(in ->
+                ExecutionResult.fail("runtime_error", "ValueError: invalid literal 'a = 5'", List.of("3")));
+
+        GradeResult r = verifier(runner).grade(problem(), "Python", HIDDEN);
+
+        assertThat(r.reason()).isEqualTo("runtime_error");
+        assertThat(r.failedTest()).isEqualTo(1);
+        assertThat(r.message()).isNull();
+    }
+
+    @Test
+    void 예시를_실행하다_난_오류는_메시지를_보여_준다() throws Exception {
+        FakeRunner runner = new FakeRunner(in ->
+                ExecutionResult.fail("runtime_error", "ZeroDivisionError: division by zero", List.of()));
+
+        GradeResult r = verifier(runner).grade(problem(), "Python", HIDDEN);
+
+        assertThat(r.failedTest()).isZero();
+        assertThat(r.message()).contains("ZeroDivisionError");
+    }
+
+    @Test
+    void 예시_출력이_틀린_뒤_오류로_멈추면_먼저_틀린_예시를_알려준다() throws Exception {
+        FakeRunner runner = new FakeRunner(in ->
+                ExecutionResult.fail("runtime_error", "IndexError", List.of("4")));
+
+        GradeResult r = verifier(runner).grade(problem(), "Python", HIDDEN);
+
+        assertThat(r.reason()).isEqualTo("output_mismatch");
+        assertThat(r.failedTest()).isZero();
+        assertThat(r.actualOutput()).isEqualTo("4");
+    }
+
+    @Test
+    void 컴파일_오류는_메시지를_보여_주고_시간_초과는_사유만_준다() throws Exception {
+        GradeResult compile = verifier(new FakeRunner(in -> ExecutionResult.fail("compile_error", "Main.java:3: error")))
+                .grade(problem(), "Python", HIDDEN);
+        GradeResult timeout = verifier(new FakeRunner(in -> ExecutionResult.fail("timeout", "실행 시간 10초 초과")))
+                .grade(problem(), "Python", HIDDEN);
+
+        assertThat(compile.reason()).isEqualTo("compile_error");
+        assertThat(compile.failedTest()).isNull();
+        assertThat(compile.message()).contains("error");
+        assertThat(timeout.reason()).isEqualTo("timeout");
+        assertThat(timeout.failedTest()).isNull();
+        assertThat(timeout.message()).isNull();
+    }
+
+    @Test
+    void 문자열이_아닌_출력은_실행기와_같은_형식으로_바꾼다() throws Exception {
+        assertThat(CodeVerifier.outputText(om.readTree("[1,2,3]"))).isEqualTo("[1, 2, 3]");
+        assertThat(CodeVerifier.outputText(om.readTree("{\"a\":[1,2]}"))).isEqualTo("{\"a\": [1, 2]}");
+        assertThat(CodeVerifier.outputText(om.readTree("\"3\""))).isEqualTo("3");
+    }
+
     @Test
     void 숨겨진_테스트_출력은_정답_코드를_한_번에_실행해_계산한다() throws Exception {
         FakeRunner runner = new FakeRunner(in -> ExecutionResult.success(List.of("12", "0")));

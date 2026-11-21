@@ -123,6 +123,8 @@ public class ProblemService {
         int currentStreak = getCurrentStreak(userId);
         user.updateStreakDays(currentStreak);
 
+        // 오답 이유: 실행 채점일 때만 있다. GradeResult가 이미 숨겨진 테스트 내용을 뺀 값만 채워 둔다.
+        GradeResult fail = correct ? null : outcome.result();
         return AttemptResultResponse.builder()
                 .problemId(problem.getId())
                 .correct(correct)
@@ -132,6 +134,11 @@ public class ProblemService {
                 .currentStreak(currentStreak)
                 .testsPassed(outcome.passed())
                 .testsTotal(outcome.total())
+                .failReason(fail == null ? null : fail.reason())
+                .failedTest(fail == null ? null : fail.failedTest())
+                .failMessage(fail == null ? null : fail.message())
+                .expectedOutput(fail == null ? null : fail.expectedOutput())
+                .actualOutput(fail == null ? null : fail.actualOutput())
                 .build();
     }
 
@@ -151,8 +158,11 @@ public class ProblemService {
     }
 
     // ── 채점 ─────────────────────────────────────────────────────
-    /** 채점 결과. passed/total은 통과한 테스트 수 / 전체 테스트 수(예시 포함). */
-    private record GradeOutcome(boolean correct, int passed, int total) {}
+    /**
+     * 채점 결과. passed/total은 통과한 테스트 수 / 전체 테스트 수(예시 포함).
+     * result는 코드를 실행해 채점했을 때의 상세(오답 이유 포함). 문자열 비교로 채점했으면 null.
+     */
+    private record GradeOutcome(boolean correct, int passed, int total, GradeResult result) {}
 
     /**
      * 채점: 유저 코드를 예시 + 숨겨진 테스트로 실제 실행해 모두 맞으면 정답.
@@ -165,7 +175,7 @@ public class ProblemService {
         if (problem.getType() == ProblemType.FILL_IN_THE_BLANK && !hasHiddenTests(problem)) {
             log.info("채점[빈칸비교]: 숨겨진 테스트가 없어 빈칸별 문자열 비교 사용");
             boolean correct = checkAnswer(problem.getAnswer(), userAnswer);
-            return new GradeOutcome(correct, correct ? 1 : 0, 1);
+            return new GradeOutcome(correct, correct ? 1 : 0, 1, null);
         }
         try {
             ObjectNode node = buildVerifyNode(problem, userAnswer);
@@ -175,7 +185,7 @@ public class ProblemService {
                         problem.getType(), problem.getLanguage(), r.ok(), r.passed(), r.total(), r.reason(), r.detail());
                 // 우리 쪽 조립/시그니처 오류면 실행으로 판단 불가 → 문자열 비교로 폴백
                 if (!"internal_error".equals(r.reason())) {
-                    return new GradeOutcome(r.ok(), r.passed(), r.total());
+                    return new GradeOutcome(r.ok(), r.passed(), r.total(), r);
                 }
             } else {
                 log.warn("채점[폴백]: 실행 불가 (스켈레톤/시그니처/IO 누락)");
@@ -185,7 +195,7 @@ public class ProblemService {
         }
         log.info("채점[문자열비교] 사용");
         boolean correct = checkAnswer(problem.getAnswer(), userAnswer);
-        return new GradeOutcome(correct, correct ? 1 : 0, 1);
+        return new GradeOutcome(correct, correct ? 1 : 0, 1, null);
     }
 
     /** CodeVerifier.verify()에 넘길 검증용 JSON 조립. 실행 불가(스켈레톤/시그니처/IO 누락)면 null. */

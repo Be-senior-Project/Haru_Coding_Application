@@ -140,6 +140,21 @@ class ProblemServiceGradeTest {
 
         assertThat(spaced.isCorrect()).isTrue();   // 공백 차이는 무시
         assertThat(other.isCorrect()).isFalse();   // 예시 1개로는 다른 표현의 정오를 가릴 수 없어 문자열 기준
+        assertThat(other.getFailReason()).isNull(); // 실행하지 않았으므로 오답 이유 없음
         verifyNoInteractions(codeVerifier);
+    }
+
+    @Test
+    void 오답이면_실행_채점의_오답_이유를_응답에_담는다() {
+        stubAttempt(implementationProblem());
+        when(codeVerifier.grade(any(), eq("Python"), eq(HIDDEN))).thenReturn(
+                new GradeResult(false, 0, 2, "output_mismatch", "expected: 3, actual: 4", 0, null, "3", "4"));
+
+        AttemptResultResponse res = service().attempt(1L, 10L, request("return 4"));
+
+        assertThat(res.getFailReason()).isEqualTo("output_mismatch");
+        assertThat(res.getFailedTest()).isZero();
+        assertThat(res.getExpectedOutput()).isEqualTo("3");
+        assertThat(res.getActualOutput()).isEqualTo("4");
     }
 }
