@@ -156,13 +156,14 @@ public class ProblemService {
 
     /**
      * 채점: 유저 코드를 예시 + 숨겨진 테스트로 실제 실행해 모두 맞으면 정답.
-     * 숨겨진 테스트가 없는 예전 문제는 예시로만 채점된다.
+     * 숨겨진 테스트가 없는 예전 문제는 예시로만 채점된다. 단, 숨겨진 테스트가 없는 빈칸 문제는 빈칸별 문자열 비교.
      * (실행 불가 — 스켈레톤/시그니처/IO 누락 또는 내부오류 — 시에만 문자열 비교로 폴백)
      */
     private GradeOutcome grade(Problem problem, Object userAnswer) {
-        // 빈칸 문제: IO 예시 1개만으로는 오답을 걸러내지 못하므로 빈칸별 문자열 비교로 채점
-        if (problem.getType() == ProblemType.FILL_IN_THE_BLANK) {
-            log.info("채점[빈칸비교]: 빈칸별 문자열 비교 사용");
+        // 숨겨진 테스트가 없는 빈칸 문제: 예시 1개로 실행 채점하면 틀린 답을 거르지 못하므로 빈칸별 문자열 비교.
+        // 숨겨진 테스트가 있으면 아래 실행 채점을 써서, 의미가 같은 다른 표현(x == n 대신 n == x 등)도 정답 처리한다.
+        if (problem.getType() == ProblemType.FILL_IN_THE_BLANK && !hasHiddenTests(problem)) {
+            log.info("채점[빈칸비교]: 숨겨진 테스트가 없어 빈칸별 문자열 비교 사용");
             boolean correct = checkAnswer(problem.getAnswer(), userAnswer);
             return new GradeOutcome(correct, correct ? 1 : 0, 1);
         }
@@ -202,41 +203,13 @@ public class ProblemService {
         ioNode.put("input", io.getOrDefault("input", ""));
         ioNode.put("output", io.get("output"));
         node.put("Code Skeleton", skeleton);
-        // 구현: 유저가 0칸부터 쓴 코어를 {{CORE}} 위치 들여쓰기에 맞춰 재정렬
-        Object answerForVerify = userAnswer;
-        if (problem.getType() == ProblemType.IMPLEMENTATION && userAnswer instanceof String s) {
-            answerForVerify = reindentCore(s, skeleton);
-        }
-        node.set("Answer", objectMapper.valueToTree(answerForVerify));
+        // 구현 답안의 들여쓰기는 CodeComposer가 {{CORE}} 위치에 맞춰 붙인다. 여기서 또 붙이면 두 번 들여써진다.
+        node.set("Answer", objectMapper.valueToTree(userAnswer));
         return node;
     }
 
-    /**
-     * 구현 코어 재들여쓰기: 유저 코어를 공통 들여쓰기 기준 0으로 맞춘 뒤,
-     * Code Skeleton의 {{CORE}} 라인 들여쓰기(baseIndent)를 모든 줄에 붙여 절대 위치로 정렬.
-     */
-    private String reindentCore(String answer, String skeleton) {
-        String base = "";
-        for (String line : skeleton.split("\n")) {
-            int idx = line.indexOf("{{CORE}}");
-            if (idx >= 0) { base = line.substring(0, idx); break; }
-        }
-        String[] lines = answer.replace("\r", "").split("\n");
-        int min = Integer.MAX_VALUE;
-        for (String l : lines) {
-            if (l.isBlank()) continue;
-            int lead = 0;
-            while (lead < l.length() && l.charAt(lead) == ' ') lead++;
-            min = Math.min(min, lead);
-        }
-        if (min == Integer.MAX_VALUE) min = 0;
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < lines.length; i++) {
-            String l = lines[i];
-            sb.append(l.isBlank() ? "" : base + l.substring(Math.min(min, l.length())));
-            if (i < lines.length - 1) sb.append("\n");
-        }
-        return sb.toString();
+    private static boolean hasHiddenTests(Problem problem) {
+        return problem.getHiddenTests() != null && !problem.getHiddenTests().isEmpty();
     }
 
     private String typeName(ProblemType t) {
