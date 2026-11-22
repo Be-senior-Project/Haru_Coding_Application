@@ -136,6 +136,31 @@ class StatsServiceTest {
     }
 
     @Test
+    void 유형별_난이도별_정답률과_날짜별_풀이_수를_돌려준다() {
+        UserProblemRecord debugging = recordAt(2, NOW, false, "A");
+        ReflectionTestUtils.setField(debugging.getProblem(), "type", ProblemType.DEBUGGING);
+        ReflectionTestUtils.setField(debugging.getProblem(), "difficulty", 2);
+        givenRecords(List.of(
+                recordAt(1, NOW, true, "A"),                  // 구현·난이도 0·정답
+                debugging,                                    // 디버깅·난이도 2·오답
+                recordAt(3, NOW.minusYears(2), true, "A")));  // 작년 → 이번 달 집계에서 빠짐
+        when(topicRepository.findByName(anyString())).thenReturn(Optional.empty());
+
+        StatsResponse all = service.getStats(1L, "ALL");
+        StatsResponse month = service.getStats(1L, "MONTH");
+
+        // 키 순서가 고정이고, 기록이 없는 유형·난이도도 0으로 들어간다
+        assertThat(all.getTypeStats()).extracting(StatsResponse.BreakdownStat::getKey)
+                .containsExactly("IMPLEMENTATION", "DEBUGGING", "FILL_IN_THE_BLANK");
+        assertThat(all.getTypeStats()).extracting(StatsResponse.BreakdownStat::getTotalSolved).containsExactly(2, 1, 0);
+        assertThat(all.getDifficultyStats()).extracting(StatsResponse.BreakdownStat::getKey).containsExactly("0", "1", "2");
+        assertThat(all.getDifficultyStats()).extracting(StatsResponse.BreakdownStat::getCorrectCount).containsExactly(2, 0, 0);
+        assertThat(all.getDailyActivity()).isEmpty();                       // 전체 기간은 날짜별 집계를 보내지 않음
+        assertThat(month.getDailyActivity()).containsEntry(LocalDate.now().toString(), 2);
+        assertThat(month.getDailyActivity()).hasSize(1);
+    }
+
+    @Test
     void 기준_미만_영역_중_정답률이_가장_낮은_영역을_약점으로_돌려준다() {
         givenRecords(List.of(
                 // A: 3문제 중 1개 정답(33%) → 약점 후보

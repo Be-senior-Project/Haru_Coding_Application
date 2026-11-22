@@ -17,7 +17,10 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -76,8 +79,41 @@ public class StatsService {
                 .weeklyActivity(weeklyActivity)
                 .categoryStats(categoryStats)
                 .weakCategory(weakCategory(categoryStats))
+                .dailyActivity(since == null ? Map.of() : dailyActivity(records))
+                .typeStats(breakdown(records, r -> r.getProblem().getType().name(), TYPE_KEYS))
+                .difficultyStats(breakdown(records, r -> String.valueOf(r.getProblem().getDifficulty()), DIFFICULTY_KEYS))
                 .recentRecords(recentRecords)
                 .build();
+    }
+
+    private static final List<String> TYPE_KEYS = List.of("IMPLEMENTATION", "DEBUGGING", "FILL_IN_THE_BLANK");
+    private static final List<String> DIFFICULTY_KEYS = List.of("0", "1", "2");
+
+    /** keys 순서대로(기록이 없는 키도 0으로) 정답률을 집계한다. 전체 탭의 유형별·난이도별 카드용. */
+    private static List<StatsResponse.BreakdownStat> breakdown(List<UserProblemRecord> records,
+                                                               Function<UserProblemRecord, String> key,
+                                                               List<String> keys) {
+        Map<String, int[]> counts = new HashMap<>();
+        for (UserProblemRecord r : records) {
+            int[] c = counts.computeIfAbsent(key.apply(r), k -> new int[2]);
+            c[0]++;
+            if (r.isCorrect()) c[1]++;
+        }
+        return keys.stream().map(k -> {
+            int[] c = counts.getOrDefault(k, new int[2]);
+            return StatsResponse.BreakdownStat.builder()
+                    .key(k).totalSolved(c[0]).correctCount(c[1]).accuracyRate(rate(c[1], c[0]))
+                    .build();
+        }).toList();
+    }
+
+    /** 날짜별(KST) 풀이 수. 푼 날만 담는다. 월간 달력·연간 히트맵용. */
+    private static Map<String, Integer> dailyActivity(List<UserProblemRecord> records) {
+        Map<String, Integer> daily = new TreeMap<>();
+        for (UserProblemRecord r : records) {
+            daily.merge(r.getSolvedAt().atZone(KST).toLocalDate().toString(), 1, Integer::sum);
+        }
+        return daily;
     }
 
     /**
