@@ -26,6 +26,8 @@ export interface Problem {
   answer: string | string[];
   explanation: string;
   conceptExplanation?: string | null;
+  // 오늘의 세트에서 약점 영역 문제로 출제됐을 때 그 영역(하위 분류, 없으면 분류). 그 밖에는 없음
+  weakArea?: string | null;
 }
 
 // ── 표시용 라벨/색상 ────────────────────────────────────────────
@@ -56,17 +58,36 @@ export function difficultySoft(d: number, c: Colors): string {
   return [c.successSoft, c.warningSoft, c.dangerSoft][d] ?? c.border;
 }
 
-// 서버의 영어 분류명(category/subcategory) → 화면에 보일 한국어 이름. 문제 은행·학습 통계가 같이 쓴다.
+// 서버의 영어 분류명(category/subcategory) → 화면에 보일 한국어 이름. 문제 은행·학습 통계·문제 풀이가 같이 쓴다.
+// 분류 3개와 하위 분류 13개(문제 생성 프롬프트 generation_en.md 기준)를 모두 둔다.
 export const CATEGORY_LABEL: Record<string, string> = {
   'Basic/Introductory': '기초/입문',
   'Algorithm/Data Structure': '알고리즘',
   'Past Exam Prep': '기출 대비',
-  'DFS/BFS': '그래프 탐색',
+  'Hash': '해시',
+  'Stack/Queue': '스택/큐',
+  'Heap': '힙',
+  'Sort': '정렬',
+  'Brute Force': '완전 탐색',
+  'Greedy': '탐욕법',
   'Dynamic Programming': '동적 계획법',
+  'DFS/BFS': '그래프 탐색',
+  'Binary Search': '이분 탐색',
+  'Graph': '그래프',
+  'Kakao': '카카오 기출',
+  'Contest': '대회 기출',
+  'General': '일반 기출',
 };
 
 export function categoryLabel(s?: string | null): string {
   return s ? CATEGORY_LABEL[s] ?? s : '';
+}
+
+// 서버가 문구 안에 작은따옴표로 넣은 영어 분류명('DFS/BFS' 등)을 한국어 이름으로 바꾼다. 추천 이유 문구 표시용.
+export function localizeAreaNames(text?: string | null): string {
+  if (!text) {return '';}
+  return text.replace(/'([^']+)'/g, (whole, name: string) =>
+    CATEGORY_LABEL[name] ? `'${CATEGORY_LABEL[name]}'` : whole);
 }
 
 // CodeBlock이 지원하는 언어로 매핑 (Java/C++는 우선 javascript 토크나이저로 폴백)

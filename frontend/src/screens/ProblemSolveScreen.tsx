@@ -11,7 +11,7 @@ import type {RouteProp} from '@react-navigation/native';
 import type {RootStackParamList} from '../navigation/AppNavigator';
 import {problemSets} from '../data/mockProblems';
 import type {Problem} from '../types/problem';
-import {TYPE_LABEL, toCodeLang} from '../types/problem';
+import {TYPE_LABEL, categoryLabel, toCodeLang} from '../types/problem';
 import {problemApi, type AttemptResult, type CodeRunResult} from '../api/problemApi';
 import {scrapApi} from '../api/scrapApi';
 import {useTheme, type Colors} from '../theme/ThemeContext';
@@ -457,8 +457,16 @@ export default function ProblemSolveScreen() {
         </View>
       </View>
 
-      <View style={styles.typeBadge}>
-        <Text style={styles.typeBadgeText}>{TYPE_LABEL[problem.type]}</Text>
+      <View style={styles.badgeRow}>
+        <View style={styles.typeBadge}>
+          <Text style={styles.typeBadgeText}>{TYPE_LABEL[problem.type]}</Text>
+        </View>
+        {/* 오늘의 세트에서 약점 영역 문제로 출제된 경우 그 이유를 보여 준다 */}
+        {!!problem.weakArea && (
+          <View style={styles.weakBadge}>
+            <Text style={styles.weakBadgeText}>약점 보완 · {categoryLabel(problem.weakArea)}</Text>
+          </View>
+        )}
       </View>
 
       <Text style={styles.title}>{problem.title}</Text>
@@ -793,11 +801,17 @@ function makeStyles(c: Colors, fs: number) {
     progressFill: {height: '100%', backgroundColor: c.primary, borderRadius: 4},
     timerWrap: {flexDirection: 'row', alignItems: 'center', gap: 3},
     timerText: {fontSize: 12 * fs, color: c.subText, fontWeight: '700'},
+    badgeRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10},
     typeBadge: {
       alignSelf: 'flex-start', backgroundColor: c.primarySoft,
-      borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10,
+      borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4,
     },
     typeBadgeText: {fontSize: 12 * fs, color: c.primary, fontWeight: '600'},
+    weakBadge: {
+      alignSelf: 'flex-start', backgroundColor: c.infoSoft,
+      borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4,
+    },
+    weakBadgeText: {fontSize: 12 * fs, color: c.info, fontWeight: '600'},
     title: {fontSize: 18 * fs, fontWeight: '700', color: c.text, marginBottom: 8},
     question: {fontSize: 15 * fs, color: c.text, lineHeight: 23 * fs, marginBottom: 16},
     metaBox: {

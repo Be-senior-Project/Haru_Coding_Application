@@ -6,7 +6,7 @@ import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import type {RootStackParamList, TabParamList} from '../navigation/AppNavigator';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {difficultyLabel, difficultyColor, difficultySoft} from '../types/problem';
+import {difficultyLabel, difficultyColor, difficultySoft, localizeAreaNames} from '../types/problem';
 import {useTheme, tierFromLevel, type Colors} from '../theme/ThemeContext';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -223,7 +223,7 @@ export default function HomeScreen() {
               {topRec ? topRec.title : '오늘의 추천 문제'}
             </Text>
             <Text style={styles.todaySub} numberOfLines={2}>
-              {topRec ? topRec.reason : '지금 실력에 맞는 문제를 받아보세요'}
+              {topRec ? localizeAreaNames(topRec.reason) : '지금 실력에 맞는 문제를 받아보세요'}
             </Text>
           </View>
           {topRec && <MaterialIcons name="chevron-right" size={22} color={colors.subText} />}
