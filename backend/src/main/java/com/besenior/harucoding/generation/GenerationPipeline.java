@@ -11,9 +11,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -44,6 +46,15 @@ public class GenerationPipeline {
     private final ObjectMapper objectMapper;
 
     private static final int MAX_RETRIES = 3;
+
+    /**
+     * 재시도는 생성을 시작한 뒤 이 시간 안에서만 한다.
+     * OpenAI 호출 한 번은 최대 http.client.read-timeout(기본 60초)까지 걸리므로, 30초가 지난 뒤 다시 시도하면
+     * 배포 서버 앞단 Cloudflare의 응답 제한(100초)을 넘겨 앱이 오류(524)를 받을 수 있다.
+     */
+    @Value("${generation.retry-window:30s}")
+    private Duration retryWindow = Duration.ofSeconds(30);
+
     static final int MAX_HIDDEN_TESTS = 5;
     /** 숨겨진 테스트 입력 하나의 최대 길이. 지나치게 큰 입력은 채점 시간만 늘린다. */
     static final int MAX_HIDDEN_INPUT_CHARS = 2000;
@@ -55,7 +66,12 @@ public class GenerationPipeline {
 
         String examples = seedRetriever.buildFewShotExamples(category, subcategory, difficulty, language);
 
+        long startedAt = System.nanoTime();
         for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            if (attempt > 1 && Duration.ofNanos(System.nanoTime() - startedAt).compareTo(retryWindow) >= 0) {
+                log.warn("생성 시작 후 {}초가 지나 더 시도하지 않음(앱 응답 시간 제한)", retryWindow.toSeconds());
+                break;
+            }
             JsonNode data = generationClient.generateSet(
                     category, subcategory, String.valueOf(difficulty), language, types, problemsPerSet, examples);
             if (data == null) {
@@ -93,7 +109,7 @@ public class GenerationPipeline {
             log.info("[{}/{}] 통과 문제 없음, 세트 재생성", attempt, MAX_RETRIES);
         }
 
-        log.warn("{}회 재시도 후 생성 실패", MAX_RETRIES);
+        log.warn("문제 생성 실패(최대 {}회 시도, 재시도는 시작 후 {}초 안에서만)", MAX_RETRIES, retryWindow.toSeconds());
         return List.of();
     }
 
