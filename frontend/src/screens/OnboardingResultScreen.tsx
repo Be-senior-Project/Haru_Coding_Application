@@ -19,13 +19,13 @@ import type {RootStackParamList} from '../navigation/AppNavigator';
 import {signup as signupApi} from '../api/authApi';
 import {userApi} from '../api/userApi';
 
-// 난이도 → 테마 토큰. 색 값은 ThemeContext 한 곳에서만 관리한다.
+// 추천 난이도는 문제 난이도와 같은 3단계(입문·초급·중급 = 프로그래머스 Lv.0~2)로 보여 준다.
+// 색도 문제 은행의 난이도 색(difficultyColor)과 같게 맞춘다(입문=성공, 초급=주의, 중급=위험). 색 값은 ThemeContext에서만 관리한다.
 function difficultyTone(difficulty: string, c: Colors): string {
   switch (difficulty) {
-    case '입문': return c.info;
-    case '초급': return c.success;
-    case '중급': return c.warning;
-    case '고급': return c.danger;
+    case '입문': return c.success;
+    case '초급': return c.warning;
+    case '중급': return c.danger;
     default: return c.primary;
   }
 }
@@ -34,14 +34,12 @@ const DIFFICULTY_ICON: Record<string, string> = {
   입문: 'star-outline',
   초급: 'eco',
   중급: 'local-fire-department',
-  고급: 'bolt',
 };
 
 const DIFFICULTY_BAR_WIDTH: Record<string, number> = {
-  입문: 25,
-  초급: 50,
-  중급: 75,
-  고급: 100,
+  입문: 34,
+  초급: 67,
+  중급: 100,
 };
 
 export default function OnboardingResultScreen() {

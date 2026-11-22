@@ -163,7 +163,7 @@ export default function ProfileEditScreen() {
 
         {/* 난이도 조절 */}
         <Text style={styles.label}>난이도</Text>
-        <Text style={styles.labelSub}>L1(입문)~L5(고급). 자동은 풀이 이력 기반 추천을 따라요</Text>
+        <Text style={styles.labelSub}>L1은 입문, L2~L3은 초급, L4~L5는 중급 문제가 나와요. 자동은 풀이 이력 기반 추천을 따라요</Text>
         <View style={styles.langWrap}>
           {DIFFICULTY_LEVELS.map(d => {
             const active = difficulty === d.value;

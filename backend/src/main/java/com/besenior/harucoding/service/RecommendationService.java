@@ -52,7 +52,7 @@ public class RecommendationService {
         int score = calcScore(codingLevel, cotePrepared);
         if (score < 25) return 0;   // 입문
         if (score < 50) return 1;   // 초급
-        return 2;                   // 중급·고급
+        return 2;                   // 중급
     }
 
     // ── 6가지 조합별 고정 문구 ─────────────────────────────────────
@@ -98,10 +98,11 @@ public class RecommendationService {
         return score;
     }
 
+    // 문제 난이도 이름(입문·초급·중급 = 프로그래머스 Lv.0~2)과 같은 3단계로 보여 준다.
+    // 생성·추천 난이도가 최대 2(중급)라 "고급"으로 안내하면 실제 출제 난이도와 맞지 않는다. (onboardingBaseLevel과 같은 구간)
     private String scoreToDifficulty(int score) {
         if (score < 25)  return "입문";
         if (score < 50)  return "초급";
-        if (score < 75)  return "중급";
-        return "고급";
+        return "중급";
     }
 }
