@@ -31,7 +31,7 @@ public class ProblemGenerationController {
     private static final List<String> ALL_TYPES =
             List.of("Implementation", "Debugging", "Fill-in-the-blank");
 
-    /** 세트 시작: 추천(안 푼 문제) 우선, 없으면 생성. 로그인 필요. */
+    /** 오늘의 세트 시작(count문제). 약점 분류가 있으면 절반은 그 분류의 안 푼 문제, 나머지는 추천, 모자라면 AI가 생성. 로그인 필요. */
     @PostMapping("/start-set")
     public ResponseEntity<List<ProblemResponse>> startSet(
             @RequestHeader("Authorization") String token,

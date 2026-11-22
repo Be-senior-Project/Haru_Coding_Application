@@ -31,8 +31,8 @@ services:
       postgres:
         condition: service_healthy
     # datasource는 표준 Spring 환경변수로 오버라이드(컨테이너 내부에선 postgres 서비스로 접속).
-    # 나머지 비밀값(OPENAI_API_KEY, ENCRYPTION_SECRET_KEY, GOOGLE 등)은 호스트 .env를 마운트해 그대로 사용.
-    # 비밀값은 compose가 호스트 .env에서 읽어 컨테이너 환경변수로 주입(파일 마운트 X).
+    # 비밀값(OPENAI_API_KEY, ENCRYPTION_SECRET_KEY, JWT_SECRET 등)은 compose가 backend/.env에서 읽어
+    # 컨테이너 환경변수로 넣는다(.env 파일을 컨테이너에 마운트하지 않음).
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/HaruCoding
       SPRING_DATASOURCE_USERNAME: postgres

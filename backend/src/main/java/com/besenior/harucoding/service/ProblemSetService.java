@@ -59,7 +59,7 @@ public class ProblemSetService {
 
     /**
      * 오늘의 세트를 반환하되, 없으면 LLM으로 생성해 problem_sets로 묶어 저장한다.
-     * 생성 난이도·언어는 유저의 온보딩 추천값(recommended_difficulty / preferred_language)을 반영.
+     * 생성 난이도는 온보딩 답변(coding_level / cote_prepared)으로 계산하고, 언어는 preferred_language(없으면 Python)를 쓴다.
      * 날짜당 1세트(target_date UNIQUE)라 첫 호출자만 생성하고 이후엔 같은 세트를 공유한다.
      */
     @Transactional

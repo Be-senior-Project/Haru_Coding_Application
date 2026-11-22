@@ -21,7 +21,7 @@ import {login, googleLogin, AuthApiError} from '../api/authApi';
 import {validateEmail} from '../utils/authValidation';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-// TODO: 백엔드 연동 시 실제 클라이언트 ID로 교체
+// 구글 로그인 웹 클라이언트 ID는 frontend/.env의 GOOGLE_WEB_CLIENT_ID에서 읽는다(서버의 GOOGLE_CLIENT_ID와 같은 값).
 import {GOOGLE_WEB_CLIENT_ID} from '@env';
 
 GoogleSignin.configure({

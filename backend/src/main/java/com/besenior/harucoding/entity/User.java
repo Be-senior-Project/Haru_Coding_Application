@@ -65,7 +65,7 @@ public class User {
     private int dailyGoalCount = 3;
 
     @Column(length = 2)
-    private String difficultyLevel; // L1~L5, NULL이면 자동 추천(estimateLevel) 유지
+    private String difficultyLevel; // L1~L5(앱은 입문·초급·중급을 L1·L3·L5로 저장). NULL이면 자동 추천(estimateLevel)
 
     private String fcmToken;
 
