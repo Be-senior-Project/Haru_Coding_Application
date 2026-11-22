@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -36,12 +38,14 @@ class ProblemSetSessionServiceQuotaTest {
     @Mock private UserRepository userRepository;
     @Mock private UserProblemRecordRepository recordRepository;
     @Mock private GenerationPipeline generationPipeline;
+    @Mock private PlatformTransactionManager txManager;
 
     private ProblemSetSessionService service(int dailyLimit) {
         GenerationQuota quota = new GenerationQuota(dailyLimit,
                 Clock.fixed(Instant.parse("2026-11-22T03:00:00Z"), ZoneId.of("Asia/Seoul")));
         return new ProblemSetSessionService(
-                recommendationService, problemRepository, userRepository, recordRepository, generationPipeline, quota);
+                recommendationService, problemRepository, userRepository, recordRepository, generationPipeline, quota,
+                new TransactionTemplate(txManager));
     }
 
     private void noUnsolvedProblems() {

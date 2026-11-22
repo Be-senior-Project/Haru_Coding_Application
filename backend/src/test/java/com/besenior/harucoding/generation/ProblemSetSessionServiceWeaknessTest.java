@@ -14,8 +14,11 @@ import com.besenior.harucoding.repository.UserRepository;
 import com.besenior.harucoding.service.ProblemRecommendationService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Clock;
@@ -26,8 +29,10 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -41,6 +46,7 @@ class ProblemSetSessionServiceWeaknessTest {
     @Mock private UserRepository userRepository;
     @Mock private UserProblemRecordRepository recordRepository;
     @Mock private GenerationPipeline generationPipeline;
+    @Mock private PlatformTransactionManager txManager;
 
     private static final String ALGO = "Algorithm/Data Structure";
     private static final List<String> ALL_TYPES = List.of("Implementation", "Debugging", "Fill-in-the-blank");
@@ -49,7 +55,8 @@ class ProblemSetSessionServiceWeaknessTest {
         GenerationQuota quota = new GenerationQuota(30,
                 Clock.fixed(Instant.parse("2026-11-22T03:00:00Z"), ZoneId.of("Asia/Seoul")));
         return new ProblemSetSessionService(
-                recommendationService, problemRepository, userRepository, recordRepository, generationPipeline, quota);
+                recommendationService, problemRepository, userRepository, recordRepository, generationPipeline, quota,
+                new TransactionTemplate(txManager));
     }
 
     private static Problem problem(long id, String category, String subcategory, String language) {
@@ -118,7 +125,10 @@ class ProblemSetSessionServiceWeaknessTest {
 
         List<ProblemResponse> set = service().startSet(1L, 4);
 
-        verify(generationPipeline).generateAndSave(ALGO, "DFS/BFS", 0, "Python", ALL_TYPES, 2);
+        // 생성(OpenAI 응답 대기)은 DB 조회 트랜잭션이 끝난(commit) 뒤에 한다 → 생성 중 DB 연결을 붙잡지 않음
+        InOrder order = inOrder(txManager, generationPipeline);
+        order.verify(txManager).commit(any());
+        order.verify(generationPipeline).generateAndSave(ALGO, "DFS/BFS", 0, "Python", ALL_TYPES, 2);
         assertThat(set).extracting(ProblemResponse::getId).containsExactly(20L, 21L, 30L, 31L);
         assertThat(set).extracting(ProblemResponse::getWeakArea).containsExactly(null, null, "DFS/BFS", "DFS/BFS");
     }

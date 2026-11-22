@@ -13,7 +13,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -59,8 +58,11 @@ public class GenerationPipeline {
     /** 숨겨진 테스트 입력 하나의 최대 길이. 지나치게 큰 입력은 채점 시간만 늘린다. */
     static final int MAX_HIDDEN_INPUT_CHARS = 2000;
 
-    /** 문제 세트 1개를 생성·검증·저장하고, 통과한 Problem들을 반환. 실패 시 빈 리스트. */
-    @Transactional
+    /**
+     * 문제 세트 1개를 생성·검증·저장하고, 통과한 Problem들을 반환. 실패 시 빈 리스트.
+     * 전체를 트랜잭션으로 묶지 않는다. OpenAI 응답·코드 검증(수십 초)을 기다리는 동안 DB 연결을 붙잡지 않도록
+     * 문제 저장·임베딩 저장만 각각 짧은 트랜잭션(저장소 기본 트랜잭션)으로 처리한다.
+     */
     public List<Problem> generateAndSave(String category, String subcategory, int difficulty,
                                          String language, List<String> types, int problemsPerSet) {
 
