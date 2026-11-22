@@ -53,6 +53,19 @@ class RunnerProgramTest {
     }
 
     @Test
+    void 자바_코드의_import_줄은_클래스_밖_맨_위로_옮긴다() {
+        // 생성 AI가 코드 틀에 import를 쓰면 Main 클래스 안에 들어가 컴파일 오류(illegal start of type)가 났다
+        String answer = "import java.util.stream.Collectors;\npublic int solution(int n) {\n    return n;\n}";
+
+        String program = JavaRunner.buildProgram(RunnerSupport.loadTemplate("runner/java_template.txt"),
+                answer, List.of("int n = 1;"), "n");
+
+        assertThat(program).startsWith("import java.util.stream.Collectors;\n");
+        assertThat(program.indexOf("import java.util.stream", program.indexOf("public class Main"))).isEqualTo(-1);
+        assertThat(program).contains("public int solution(int n)");
+    }
+
+    @Test
     void 출력은_줄별로_나누고_줄끝_공백과_마지막_빈_줄을_지운다() {
         assertThat(RunnerSupport.outputLines("3\r\n[1, 2] \n\"a\"\n\n")).containsExactly("3", "[1, 2]", "\"a\"");
         assertThat(RunnerSupport.outputLines("")).isEmpty();

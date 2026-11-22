@@ -3,6 +3,7 @@ package com.besenior.harucoding.generation.verify;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Java 실행기. resources/runner/java_template.txt 를 로드해 조립 후 javac/java 실행.
@@ -18,6 +19,17 @@ public class JavaRunner implements Runner {
      * 사용자 코드는 마지막에 넣는다(RunnerSupport.replaceOnce 참고).
      */
     static String buildProgram(String template, String answerCode, List<String> ioInputs, String args) {
+        // 코드에 쓴 import 줄은 파일 맨 위(클래스 밖)로 옮긴다. 실행 틀은 코드를 Main 클래스 안에 넣으므로
+        // 그대로 두면 "illegal start of type" 컴파일 오류가 난다. (java.util.*은 실행 틀에 이미 있다)
+        StringBuilder imports = new StringBuilder();
+        StringBuilder body = new StringBuilder();
+        for (String line : answerCode.split("\n", -1)) {
+            if (IMPORT_LINE.matcher(line).matches()) {
+                imports.append(line.strip()).append('\n');
+            } else {
+                body.append(body.isEmpty() ? "" : "\n").append(line);
+            }
+        }
         StringBuilder cases = new StringBuilder();
         for (String io : ioInputs) {
             cases.append("        {\n")
@@ -27,8 +39,11 @@ public class JavaRunner implements Runner {
                     .append("        }\n");
         }
         String withCases = RunnerSupport.replaceOnce(template, "__CASES__", cases.toString());
-        return RunnerSupport.replaceOnce(withCases, "__ANSWER__", RunnerSupport.indentBody(answerCode, 4));
+        return imports + RunnerSupport.replaceOnce(withCases, "__ANSWER__", RunnerSupport.indentBody(body.toString(), 4));
     }
+
+    /** "import java.util.stream.Collectors;" 같은 import 줄(static import 포함) */
+    private static final Pattern IMPORT_LINE = Pattern.compile("^\\s*import\\s+(static\\s+)?[\\w.]+(\\.\\*)?\\s*;\\s*$");
 
     @Override
     public ExecutionResult execute(String answerCode, List<String> ioInputs, String signature) {

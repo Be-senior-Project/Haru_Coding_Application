@@ -142,6 +142,7 @@ The output has two parts: a `Set` object (shared metadata + concept) and a `Prob
 
 Additional rules:
 - For `Implementation`, the `{{CORE}}` placeholder appears **exactly once**, alone on its own line. `Answer` is a single string (may be multi-line).
+- For Java, never write `import` statements: the harness already imports `java.util.*` and places your code inside its class. Use fully qualified names for other packages (e.g., `java.util.stream.Collectors`).
 - For `Fill-in-the-blank`, placeholders must use **double curly braces** exactly: `{{BLANK_1}}`. Numbering starts at 1 and increases by 1. Blanks must target the **core algorithmic part** (and code right next to it), not trivial boilerplate.
 - For `Fill-in-the-blank`, `Answer` is the only field that is an array of strings. For `Implementation` and `Debugging`, `Answer` is a single string.
 
