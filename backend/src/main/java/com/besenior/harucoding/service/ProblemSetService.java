@@ -6,7 +6,8 @@ import com.besenior.harucoding.DTO.SubmitResultResponse;
 import com.besenior.harucoding.entity.*;
 import com.besenior.harucoding.generation.GenerationPipeline;
 import com.besenior.harucoding.generation.GenerationQuota;
-import com.besenior.harucoding.global.enums.DifficultyLevel;
+import com.besenior.harucoding.global.util.DifficultyRules;
+import com.besenior.harucoding.global.util.LanguageRules;
 import com.besenior.harucoding.global.enums.XpReason;
 import com.besenior.harucoding.global.exception.CustomException;
 import com.besenior.harucoding.global.exception.ErrorCode;
@@ -77,7 +78,7 @@ public class ProblemSetService {
         // 원본 답변(coding_level/cote_prepared)에서 매번 계산한다.
         int difficulty = recommendationService.onboardingBaseLevel(
                 user.getCodingLevel(), user.isCotePrepared());
-        String language = mapLanguage(user.getPreferredLanguage());
+        String language = LanguageRules.problemLanguage(user.getPreferredLanguage());
         String category = difficulty == 0 ? "Basic/Introductory" : "Algorithm/Data Structure";
 
         // 생성에 실패하면 다음 호출자가 다시 생성을 시도하므로, 반복 호출로 비용이 쌓이지 않게 한도를 건다
@@ -93,7 +94,7 @@ public class ProblemSetService {
         ProblemSet set = ProblemSet.builder()
                 .title("오늘의 코딩 도전")
                 .targetDate(today)
-                .difficulty(toLevel(difficulty))
+                .difficulty(DifficultyRules.toSetLevel(difficulty))
                 .isAiGenerated(true)
                 .build();
         for (int i = 0; i < problems.size(); i++) {
@@ -105,25 +106,6 @@ public class ProblemSetService {
         return ProblemSetResponse.from(set, false);
     }
 
-    // 생성 난이도(0/1/2) → 세트 라벨용 DifficultyLevel
-    private DifficultyLevel toLevel(int difficulty) {
-        return switch (difficulty) {
-            case 1 -> DifficultyLevel.초급;
-            case 2 -> DifficultyLevel.중급;
-            default -> DifficultyLevel.입문;
-        };
-    }
-
-    // 선호 언어(JAVA/PYTHON/C/JS) → 생성 언어(Python/Java/C++). 생성기는 JS 미지원 → Python 폴백
-    private String mapLanguage(String preferred) {
-        if (preferred == null) return "Python";
-        return switch (preferred) {
-            case "JAVA" -> "Java";
-            case "C" -> "C++";
-            case "PYTHON", "JS" -> "Python";
-            default -> "Python";
-        };
-    }
 
     @Transactional
     public SubmitResultResponse submit(Long userId, Long setId, SubmitAnswerRequest request) {
@@ -169,16 +151,16 @@ public class ProblemSetService {
                     .xpEarned(firstCorrect ? XP_PER_CORRECT : 0)
                     .build());
 
-            // 카테고리 통계 업데이트 (problem.category 문자열 → Topic 매핑, 없으면 생성)
-            Topic topic = topicRepository.findByName(problem.getCategory())
-                    .orElseGet(() -> topicRepository.save(
-                            Topic.builder().name(problem.getCategory()).build()));
-            UserCategoryStat stat = categoryStatRepository
-                    .findByUserIdAndTopicId(userId, topic.getId())
-                    .orElseGet(() -> UserCategoryStat.builder()
-                            .user(user).topic(topic).build());
-            stat.recordResult(isCorrect);
-            categoryStatRepository.save(stat);
+            // 카테고리 통계 업데이트 (problem.category 문자열 → Topic). 분류 3개의 주제는 서버 시작 때 만들어 두므로
+            // (TopicInitializer) 여기서 새로 만들지 않는다.
+            topicRepository.findByName(problem.getCategory()).ifPresent(topic -> {
+                UserCategoryStat stat = categoryStatRepository
+                        .findByUserIdAndTopicId(userId, topic.getId())
+                        .orElseGet(() -> UserCategoryStat.builder()
+                                .user(user).topic(topic).build());
+                stat.recordResult(isCorrect);
+                categoryStatRepository.save(stat);
+            });
 
             results.add(SubmitResultResponse.ProblemResult.builder()
                     .problemId(problem.getId())

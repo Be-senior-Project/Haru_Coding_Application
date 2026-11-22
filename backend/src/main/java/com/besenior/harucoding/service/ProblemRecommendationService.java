@@ -14,6 +14,8 @@ import com.besenior.harucoding.repository.ProblemEmbeddingRepository;
 import com.besenior.harucoding.repository.ProblemRepository;
 import com.besenior.harucoding.repository.UserProblemRecordRepository;
 import com.besenior.harucoding.repository.UserRepository;
+import com.besenior.harucoding.global.util.DifficultyRules;
+import com.besenior.harucoding.global.util.LanguageRules;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -86,9 +88,10 @@ public class ProblemRecommendationService {
 
         // users.preferred_language(JAVA/PYTHON/C/JS) → problems.language(Python/Java/C++)로 정규화.
         // 정규화 없이 그대로 비교하면 대소문자·표기가 달라 필터가 항상 무효가 된다.
-        String lang = mapLanguage(user.getPreferredLanguage());   // null 이면 전체 언어
+        // 언어를 고르지 않았으면 Python(LanguageRules). 세트의 약점 몫·생성과 같은 언어라 한 세트 안에서 언어가 섞이지 않는다.
+        String lang = LanguageRules.problemLanguage(user.getPreferredLanguage());
         // 유저가 마이페이지에서 난이도(L1~L5)를 직접 골랐으면 그 값을 우선 사용, 아니면 자동 추정.
-        Integer manualLevel = mapDifficultyLevel(user.getDifficultyLevel());
+        Integer manualLevel = DifficultyRules.fromUserSetting(user.getDifficultyLevel());
         int level = manualLevel != null ? manualLevel : estimateLevel(user, records);
         int lo = Math.max(0, level - 1);
         int hi = Math.min(2, level + 1);
@@ -248,28 +251,6 @@ public class ProblemRecommendationService {
                 .collect(Collectors.toList());
     }
 
-    // L1~L5(프로그래머스 기준) → 생성/추천 난이도(0/1/2). 0레벨:L1, 1레벨:L2~L3, 2레벨:L4~L5.
-    private Integer mapDifficultyLevel(String difficultyLevel) {
-        if (difficultyLevel == null) return null;
-        return switch (difficultyLevel) {
-            case "L1" -> 0;
-            case "L2", "L3" -> 1;
-            case "L4", "L5" -> 2;
-            default -> null;
-        };
-    }
-
-    // 선호 언어(JAVA/PYTHON/C/JS) → 문제 언어(Python/Java/C++). ProblemSetSessionService와 동일 매핑.
-    private String mapLanguage(String preferred) {
-        if (preferred == null) return null;
-        return switch (preferred) {
-            case "JAVA" -> "Java";
-            case "PYTHON" -> "Python";
-            case "C" -> "C++";
-            default -> null; // JS 등 매칭되는 문제 언어가 없으면 언어 필터 없이 추천
-        };
-    }
-
     // ── 역량 요약 ────────────────────────────────────────────────────
     private CompetencySummary buildSummary(List<UserProblemRecord> records, int level) {
         long total = records.size();
@@ -310,13 +291,8 @@ public class ProblemRecommendationService {
     // ── 추정 레벨 (난이도 컨트롤러) ──────────────────────────────────
     private int estimateLevel(User user, List<UserProblemRecord> records) {
         if (records.isEmpty()) {
-            int base = switch (user.getCodingLevel() == null ? "NONE" : user.getCodingLevel()) {
-                case "LOTS" -> 2;
-                case "SOME" -> 1;
-                default -> 0;
-            };
-            if (user.isCotePrepared() && base < 2) base++;
-            return base;
+            // 풀이 기록이 없으면 온보딩 답변으로 정한다(온보딩 결과 화면의 추천 난이도와 같은 규칙)
+            return DifficultyRules.fromOnboarding(user.getCodingLevel(), user.isCotePrepared());
         }
         int best = 0;
         for (int d = 0; d <= 2; d++) {

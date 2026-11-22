@@ -103,15 +103,15 @@ public class ProblemService {
                 .xpEarned(firstCorrect ? XP_PER_CORRECT : 0)
                 .build());
 
-        // 카테고리 통계 (category 문자열 → Topic 매핑, 없으면 생성)
-        Topic topic = topicRepository.findByName(problem.getCategory())
-                .orElseGet(() -> topicRepository.save(
-                        Topic.builder().name(problem.getCategory()).build()));
-        UserCategoryStat stat = categoryStatRepository
-                .findByUserIdAndTopicId(userId, topic.getId())
-                .orElseGet(() -> UserCategoryStat.builder().user(user).topic(topic).build());
-        stat.recordResult(correct);
-        categoryStatRepository.save(stat);
+        // 카테고리 통계 (category 문자열 → Topic). 분류 3개의 주제는 서버 시작 때 만들어 두므로(TopicInitializer)
+        // 여기서 새로 만들지 않는다. 예전엔 없으면 영어 이름 주제를 만들어 홈 주제 카드가 늘어났다.
+        topicRepository.findByName(problem.getCategory()).ifPresent(topic -> {
+            UserCategoryStat stat = categoryStatRepository
+                    .findByUserIdAndTopicId(userId, topic.getId())
+                    .orElseGet(() -> UserCategoryStat.builder().user(user).topic(topic).build());
+            stat.recordResult(correct);
+            categoryStatRepository.save(stat);
+        });
 
         // 스트릭 + XP (다시 맞힌 문제도 오늘의 학습으로 연속 학습일에는 반영한다)
         if (correct) {

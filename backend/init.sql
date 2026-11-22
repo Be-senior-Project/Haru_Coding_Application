@@ -65,12 +65,7 @@ CREATE TABLE IF NOT EXISTS topics (
     icon        VARCHAR(100)
     );
 
-INSERT INTO topics (name, description, icon) VALUES
-                                                 ('알고리즘',    '정렬, 탐색, 그리디, DP 등',    'account-tree'),
-                                                 ('자료구조',    '스택, 큐, 트리, 그래프 등',     'data-object'),
-                                                 ('언어/문법',   '언어별 문법 및 개념',            'code'),
-                                                 ('모의테스트',  '실전형 종합 문제',               'assignment')
-    ON CONFLICT (name) DO NOTHING;
+-- topics 초기 데이터는 서버가 시작될 때 문제 분류 3개로 만든다(TopicInitializer). 예전 한국어 주제 4개는 문제 분류와 이름이 달라 쓰이지 않았다.
 
 -- ────────────────────────────────────────────
 -- 4. problems
