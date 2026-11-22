@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 public class ProblemResponse {
     private Long id;
     private String setId;
@@ -26,6 +26,8 @@ public class ProblemResponse {
     private Object answer;
     private String explanation;
     private String conceptExplanation;
+    // 오늘의 세트에서 약점 영역 문제로 출제됐을 때 그 영역(하위 분류, 없으면 분류). 그 밖에는 null.
+    private String weakArea;
 
     public static ProblemResponse from(Problem p, boolean includeAnswer) {
         return ProblemResponse.builder()

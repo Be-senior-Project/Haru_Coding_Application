@@ -5,6 +5,7 @@ import com.besenior.harucoding.entity.User;
 import com.besenior.harucoding.global.exception.CustomException;
 import com.besenior.harucoding.global.exception.ErrorCode;
 import com.besenior.harucoding.repository.ProblemRepository;
+import com.besenior.harucoding.repository.UserProblemRecordRepository;
 import com.besenior.harucoding.repository.UserRepository;
 import com.besenior.harucoding.service.ProblemRecommendationService;
 import org.junit.jupiter.api.Test;
@@ -33,13 +34,14 @@ class ProblemSetSessionServiceQuotaTest {
     @Mock private ProblemRecommendationService recommendationService;
     @Mock private ProblemRepository problemRepository;
     @Mock private UserRepository userRepository;
+    @Mock private UserProblemRecordRepository recordRepository;
     @Mock private GenerationPipeline generationPipeline;
 
     private ProblemSetSessionService service(int dailyLimit) {
         GenerationQuota quota = new GenerationQuota(dailyLimit,
                 Clock.fixed(Instant.parse("2026-11-22T03:00:00Z"), ZoneId.of("Asia/Seoul")));
         return new ProblemSetSessionService(
-                recommendationService, problemRepository, userRepository, generationPipeline, quota);
+                recommendationService, problemRepository, userRepository, recordRepository, generationPipeline, quota);
     }
 
     private void noUnsolvedProblems() {
