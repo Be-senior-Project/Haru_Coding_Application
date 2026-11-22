@@ -18,29 +18,13 @@ import {useTheme, type Colors} from '../theme/ThemeContext';
 import type {RootStackParamList} from '../navigation/AppNavigator';
 import {signup as signupApi} from '../api/authApi';
 import {userApi} from '../api/userApi';
+import {difficultyColor, difficultyFromLabel} from '../types/problem';
 
 // 추천 난이도는 문제 난이도와 같은 3단계(입문·초급·중급 = 프로그래머스 Lv.0~2)로 보여 준다.
-// 색도 문제 은행의 난이도 색(difficultyColor)과 같게 맞춘다(입문=성공, 초급=주의, 중급=위험). 색 값은 ThemeContext에서만 관리한다.
-function difficultyTone(difficulty: string, c: Colors): string {
-  switch (difficulty) {
-    case '입문': return c.success;
-    case '초급': return c.warning;
-    case '중급': return c.danger;
-    default: return c.primary;
-  }
-}
-
-const DIFFICULTY_ICON: Record<string, string> = {
-  입문: 'star-outline',
-  초급: 'eco',
-  중급: 'local-fire-department',
-};
-
-const DIFFICULTY_BAR_WIDTH: Record<string, number> = {
-  입문: 34,
-  초급: 67,
-  중급: 100,
-};
+// 색은 문제 은행과 같은 공용 함수(difficultyColor)를 쓴다(입문=성공, 초급=주의, 중급=위험).
+// 아래 두 배열은 난이도 0·1·2 순서다.
+const DIFFICULTY_ICON = ['star-outline', 'eco', 'local-fire-department'];
+const DIFFICULTY_BAR_WIDTH = [34, 67, 100];
 
 export default function OnboardingResultScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -50,8 +34,9 @@ export default function OnboardingResultScreen() {
   const insets = useSafeAreaInsets();
 
   const {signup, codingLevel, cotePrepared, difficulty, reason, focusPoint} = route.params;
-  const diffColor = difficultyTone(difficulty, colors);
-  const diffIcon = DIFFICULTY_ICON[difficulty] ?? 'star';
+  const level = difficultyFromLabel(difficulty);
+  const diffColor = level >= 0 ? difficultyColor(level, colors) : colors.primary;
+  const diffIcon = DIFFICULTY_ICON[level] ?? 'star';
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -124,7 +109,7 @@ export default function OnboardingResultScreen() {
               styles.difficultyBarFill,
               {
                 backgroundColor: diffColor,
-                width: `${DIFFICULTY_BAR_WIDTH[difficulty] ?? 50}%`,
+                width: `${DIFFICULTY_BAR_WIDTH[level] ?? 50}%`,
               },
             ]}
           />

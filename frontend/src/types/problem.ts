@@ -48,6 +48,12 @@ export function difficultyLabel(d: number): string {
   return DIFFICULTY_LABEL[d] ?? '기타';
 }
 
+// 표시 이름(입문·초급·중급) → 0·1·2. 서버가 이름으로 주는 곳(온보딩 결과)에서 쓴다. 모르는 이름이면 -1
+export function difficultyFromLabel(label: string): number {
+  const found = Object.entries(DIFFICULTY_LABEL).find(([, name]) => name === label);
+  return found ? Number(found[0]) : -1;
+}
+
 // 난이도 색은 테마 토큰에서 가져온다 (입문=성공, 초급=주의, 중급=위험).
 export function difficultyColor(d: number, c: Colors): string {
   return [c.success, c.warning, c.danger][d] ?? c.subText;

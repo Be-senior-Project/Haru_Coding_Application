@@ -6,7 +6,7 @@ import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import type {RootStackParamList, TabParamList} from '../navigation/AppNavigator';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {difficultyLabel, difficultyColor, difficultySoft, localizeAreaNames} from '../types/problem';
+import {difficultyLabel, difficultyColor, difficultySoft, localizeAreaNames, categoryLabel} from '../types/problem';
 import {useTheme, tierFromLevel, type Colors} from '../theme/ThemeContext';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -22,12 +22,12 @@ type TopicTone = 'success' | 'info' | 'primary' | 'streak';
 // 카드 색은 순서대로 돌려쓴다 (주제는 백엔드 /api/topics에서 옴)
 const TONES: TopicTone[] = ['success', 'info', 'primary', 'streak'];
 
-// /api/topics 를 못 불러왔을 때만 쓰는 폴백 (백엔드 seed와 동일한 주제)
+// /api/topics 를 못 불러왔을 때만 쓰는 폴백. 서버의 문제 분류 3개(ProblemCategory)와 같다.
+// name은 서버 분류명(영어)이고, 화면에는 categoryLabel로 한국어 이름을 보여 준다.
 const FALLBACK_TOPICS: Topic[] = [
-  {id: -1, name: '알고리즘', icon: 'account-tree'},
-  {id: -2, name: '자료구조', icon: 'data-object'},
-  {id: -3, name: '언어/문법', icon: 'code'},
-  {id: -4, name: '모의테스트', icon: 'assignment'},
+  {id: -1, name: 'Basic/Introductory', icon: 'code'},
+  {id: -2, name: 'Algorithm/Data Structure', icon: 'account-tree'},
+  {id: -3, name: 'Past Exam Prep', icon: 'assignment'},
 ];
 
 // 토픽 카드의 강조색/배경색을 현재 테마에서 꺼낸다 (다크모드에서 같이 뒤집히도록)
@@ -135,7 +135,7 @@ export default function HomeScreen() {
       const acc = Math.min(Number(s?.accuracyRate) || 0, 100);
       return {
         id: t.id,
-        label: t.name,
+        label: categoryLabel(t.name),
         icon: t.icon || 'category',
         tone: TONES[i % TONES.length],
         solved: Number(s?.totalSolved) || 0,
