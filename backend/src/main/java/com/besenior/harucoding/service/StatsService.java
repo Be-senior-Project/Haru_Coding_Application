@@ -17,8 +17,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -32,10 +30,6 @@ public class StatsService {
     private final UserStreakLogRepository streakLogRepository;
     private final TopicRepository topicRepository;
 
-    /** 약점 기준: 정답률이 이 값(%) 미만이면서 이 수 이상 푼 영역. 학습 통계의 약점 안내와 약점 기반 문제 생성이 같이 쓴다. */
-    public static final double WEAK_ACCURACY_BELOW = 70.0;
-    public static final int WEAK_MIN_SOLVED = 3;
-
     @Transactional(readOnly = true)
     public StatsResponse getStats(Long userId, String period) {
         userRepository.findById(userId)
@@ -46,7 +40,7 @@ public class StatsService {
         List<UserProblemRecord> allRecords = recordRepository.findByUserIdOrderBySolvedAtDesc(userId);
         // 통계는 문제별 첫 제출 기록으로 센다. 같은 문제를 다시 제출해도 푼 문제 수·정답률이 부풀지 않게 하기 위함.
         // 기간 탭은 그 문제를 처음 푼 날짜로 나눈다.
-        List<UserProblemRecord> firstAttempts = firstAttempts(allRecords);
+        List<UserProblemRecord> firstAttempts = WeaknessAnalyzer.firstAttempts(allRecords);
         List<UserProblemRecord> records = inPeriod(firstAttempts, since);
 
         long totalSolved  = records.size();
@@ -87,27 +81,13 @@ public class StatsService {
     }
 
     /**
-     * 약점 영역: 기준(WEAK_MIN_SOLVED문제 이상 풀고 정답률 WEAK_ACCURACY_BELOW% 미만)을 만족하는 영역 중
-     * 정답률이 가장 낮은 영역의 분류명. 없으면 null. (영역이 하나뿐이라고 약점으로 보지 않는다)
+     * 약점 영역(공용 기준 WeaknessAnalyzer: 3문제 이상 풀고 첫 제출 정답률 70% 미만인 영역 중 가장 낮은 곳).
+     * 없으면 null. 영역이 하나뿐이라고 약점으로 보지 않는다.
      */
     static String weakCategory(List<StatsResponse.CategoryStat> stats) {
-        return stats.stream()
-                .filter(c -> c.getTotalSolved() >= WEAK_MIN_SOLVED && c.getAccuracyRate() < WEAK_ACCURACY_BELOW)
-                .min(Comparator.comparingDouble(StatsResponse.CategoryStat::getAccuracyRate))
-                .map(StatsResponse.CategoryStat::getTopicName)
-                .orElse(null);
-    }
-
-    /** 문제별 첫 제출 기록만 남긴다(입력·출력 모두 최신순). */
-    static List<UserProblemRecord> firstAttempts(List<UserProblemRecord> newestFirst) {
-        Map<Long, UserProblemRecord> first = new LinkedHashMap<>();
-        for (int i = newestFirst.size() - 1; i >= 0; i--) {
-            UserProblemRecord r = newestFirst.get(i);
-            first.putIfAbsent(r.getProblem().getId(), r);
-        }
-        List<UserProblemRecord> result = new ArrayList<>(first.values());
-        result.sort(Comparator.comparing(UserProblemRecord::getSolvedAt).reversed());
-        return result;
+        return WeaknessAnalyzer.weakest(stats.stream()
+                .map(c -> new WeaknessAnalyzer.AreaStat(c.getTopicName(), c.getTotalSolved(), c.getCorrectCount()))
+                .toList());
     }
 
     private static List<UserProblemRecord> inPeriod(List<UserProblemRecord> records, LocalDateTime since) {

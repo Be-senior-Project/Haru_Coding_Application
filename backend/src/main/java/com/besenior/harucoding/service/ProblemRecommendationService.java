@@ -276,33 +276,18 @@ public class ProblemRecommendationService {
         long correct = records.stream().filter(UserProblemRecord::isCorrect).count();
         double accuracy = total == 0 ? 0.0 : round1((double) correct / total * 100);
 
-        // 영역(subcategory, 없으면 category)별 집계
-        Map<String, int[]> byArea = new HashMap<>(); // [attempts, correct]
-        for (UserProblemRecord r : records) {
-            String area = area(r.getProblem());
-            int[] s = byArea.computeIfAbsent(area, k -> new int[2]);
-            s[0]++;
-            if (r.isCorrect()) s[1]++;
-        }
+        // 영역(subcategory, 없으면 category)별 집계. 약점 판단은 공용 기준(WeaknessAnalyzer)을 따른다:
+        // 문제별 첫 제출 기준, 3문제 이상 풀고 정답률 70% 미만. 학습 통계 화면·오늘의 세트와 같은 기준이다.
+        Map<String, WeaknessAnalyzer.AreaStat> byArea =
+                WeaknessAnalyzer.group(WeaknessAnalyzer.firstAttempts(records), this::area);
 
-        List<AreaStat> stats = byArea.entrySet().stream()
-                .map(e -> AreaStat.builder()
-                        .area(e.getKey())
-                        .attempts(e.getValue()[0])
-                        .correct(e.getValue()[1])
-                        .accuracyRate(round1((double) e.getValue()[1] / e.getValue()[0] * 100))
-                        .build())
-                .toList();
+        List<AreaStat> weak = WeaknessAnalyzer.weakAreas(byArea.values()).stream()
+                .limit(5).map(this::toAreaStat).toList();
 
-        List<AreaStat> weak = stats.stream()
-                .filter(s -> s.getAttempts() >= 2 && s.getAccuracyRate() < 50.0)
-                .sorted(Comparator.comparingDouble(AreaStat::getAccuracyRate))
-                .limit(5).toList();
-
-        List<AreaStat> strong = stats.stream()
-                .filter(s -> s.getAttempts() >= 2 && s.getAccuracyRate() >= 80.0)
-                .sorted(Comparator.comparingDouble(AreaStat::getAccuracyRate).reversed())
-                .limit(5).toList();
+        List<AreaStat> strong = byArea.values().stream()
+                .filter(s -> s.solved() >= WeaknessAnalyzer.WEAK_MIN_SOLVED && s.rate() >= 80.0)
+                .sorted(Comparator.comparingDouble(WeaknessAnalyzer.AreaStat::rate).reversed())
+                .limit(5).map(this::toAreaStat).toList();
 
         return CompetencySummary.builder()
                 .totalSolved(total)
@@ -310,6 +295,15 @@ public class ProblemRecommendationService {
                 .estimatedLevel(level)
                 .weakAreas(weak)
                 .strongAreas(strong)
+                .build();
+    }
+
+    private AreaStat toAreaStat(WeaknessAnalyzer.AreaStat s) {
+        return AreaStat.builder()
+                .area(s.area())
+                .attempts(s.solved())
+                .correct(s.correct())
+                .accuracyRate(s.rate())
                 .build();
     }
 
