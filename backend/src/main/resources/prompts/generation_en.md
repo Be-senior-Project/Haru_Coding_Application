@@ -9,8 +9,16 @@ based on the style of platforms like Programmers.
 ## Problem Definition
 
 ### Difficulty Levels
-- Generate problems only for Levels 0, 1, and 2 based on the Programmers platform standards.
-- **Complexity Guidelines**: Levels 0-1 should focus on implementation, while Level 2 should require efficient algorithms (e.g., O(n log n)) by setting appropriate constraints.
+Generate problems only for Levels 0, 1, and 2 (Programmers Lv.0-2). Match the requested level exactly.
+A level is defined by the concept the problem practices, not by input size.
+
+| Level | What the problem practices | Typical input size in Constraints |
+|---|---|---|
+| 0 | Basic syntax: variables, conditionals, one loop, simple string/array handling. No special algorithm | Small (n ≤ 100) |
+| 1 | One key idea with strings, implementation, sorting, hash map, or greedy | Small, or up to 100,000 when a single pass or sorting is the intended solution |
+| 2 | A standard algorithm: stack/queue, heap, BFS/DFS, binary search, dynamic programming, brute force | Small for exhaustive search (e.g., n ≤ 20); up to 100,000 when an efficient algorithm (e.g., O(n log n)) is the point |
+
+- Never set a maximum input size above 100,000 elements.
 
 ### Problem Types
 1. Implementation
@@ -103,8 +111,19 @@ The output has two parts: a `Set` object (shared metadata + concept) and a `Prob
 - Each item is written **exactly like `IO Example.input`**: variable declarations in the requested LANGUAGE syntax, with the same variable names in the same order as `Signature`, separated by `\n`.
 - Every input MUST satisfy the `Constraints`, MUST differ from `IO Example.input`, and MUST differ from each other.
 - Cover edge cases (smallest size, duplicates, negative numbers if allowed, boundary values) so that a solution which only returns the example output fails.
-- Keep each input short (under 300 characters) so it runs instantly.
+- Keep each input short (under 300 characters).
 - Do NOT include outputs. The system computes the expected outputs by running the `Answer`.
+- **Large inputs (Levels 1-2, when `Constraints` allow 10,000 or more elements):** 1 to 2 of the Hidden Inputs MUST use the
+  maximum size in `Constraints`, so that a solution slower than intended (e.g., O(n²) for n = 100,000) exceeds the
+  5-second time limit while the `Answer` finishes in under 1 second. Do NOT add large inputs to exhaustive-search
+  problems whose `Constraints` are small.
+  - Write a large input as a short generating expression in the requested LANGUAGE (still variable declarations, still
+    under 300 characters). Never write out a large literal array.
+    - Python: `n = 100000\narr = [(i * 37) % 1000 for i in range(100000)]`
+    - Java: `int n = 100000;\nint[] arr = java.util.stream.IntStream.range(0, 100000).map(i -> (i * 37) % 1000).toArray();`
+    - C++: `int n = 100000;\nvector<int> arr = [] { vector<int> v(100000); for (int i = 0; i < 100000; i++) v[i] = (i * 37) % 1000; return v; }();`
+  - The value returned for a large input must be short: a number, a boolean, or at most 20 list items / 100 characters.
+    For such problems, design `solution()` to return a count, sum, maximum, minimum, length, or index.
 
 #### `solution()` behavior (strict)
 - `solution()` **MUST NOT** print anything itself. No `print`, no `System.out.println`, no `cout`, no logging, no I/O of any kind inside the function.
@@ -118,7 +137,7 @@ The output has two parts: a `Set` object (shared metadata + concept) and a `Prob
 | Type | Code Skeleton | Answer |
 |------|---------------|--------|
 | `Implementation`     | A full function scaffold (imports, signature, setup, return) where **only the core logic line(s) are replaced by a single `{{CORE}}` placeholder** occupying its own line. The solver fills in the few key lines. | A single string: the exact code block that replaces the `{{CORE}}` line. It MUST include the correct absolute indentation on **every** line so it drops in cleanly. Keep it to the essential ~5-7 core lines. |
-| `Debugging`          | A complete function definition that **contains bugs**. It must compile/parse but produce wrong output. | A single string: the complete **corrected** function definition. |
+| `Debugging`          | A complete function definition in which **exactly one line is wrong** (all levels; the solver may fix only that one line, as in Programmers PCCE debugging problems). It must compile/parse. The wrong line MUST make the output for `IO Example.input` differ from `IO Example.output`. Use a logic bug that is fixed by editing that single line (off-by-one, wrong operator or condition, wrong initial value, wrong variable, wrong return expression), never a syntax error and never a missing line. | A single string: the complete **corrected** function definition. It MUST be identical to the `Code Skeleton` except for that one line (same number of lines). |
 | `Fill-in-the-blank`  | A complete function definition where the **core span(s)** (and immediately adjacent code such as a loop header or condition) are replaced by placeholders `{{BLANK_1}}`, `{{BLANK_2}}`, ... in order. Non-core scaffolding stays filled in. | A **JSON array** of strings, one entry per blank, in order. Each entry is the exact code fragment for that blank. Example: `["i + 1", "n"]` |
 
 Additional rules:
@@ -138,7 +157,7 @@ Additional rules:
 - The hint describes the **code structure/flow** so the solver knows HOW to organize their code, but must write it themselves.
 - Rules differ by Type:
   - **Implementation**: Describe the structure of the core logic as pseudo-code flow. Example: "for문으로 배열을 순회하면서 조건을 만족하는 값을 찾으면 바로 return하는 구조예요. 찾지 못하면 -1을 반환하세요."
-  - **Debugging**: Point to the area where the bug exists (e.g., which line or which part of the logic) and describe what kind of bug it is (off-by-one, wrong operator, missing condition, etc.), WITHOUT telling the fix. Example: "3번째 줄의 비교 연산자를 확인해보세요. 경계값이 포함되어야 하는지 생각해보세요."
+  - **Debugging**: Point to the area of the one wrong line (e.g., which part of the logic) and describe what kind of bug it is (off-by-one, wrong operator, wrong condition, etc.), WITHOUT telling the fix. Example: "반복문의 조건식을 확인해보세요. 경계값이 포함되어야 하는지 생각해보세요."
   - **Fill-in-the-blank**: For each blank, describe what KIND of code belongs there (loop condition, return value, function call, etc.) without giving the exact code. Example: "BLANK_1에는 반복 범위를 지정하는 코드가 들어가요. `range()`를 활용해보세요. BLANK_2에는 조건문이 들어가요."
 - Write 2-3 sentences in Korean using polite tone.
 
@@ -177,6 +196,6 @@ You MUST NOT copy the examples. Generate a **new, distinct set** that explores a
 
 If Subcategory is not "None", every problem must focus specifically on the given Subcategory within the Category.
 
-Generate exactly {{problemsPerSet}} problems in the Problems array, all sharing the single concept in Set.Concept Explanation. Each problem Type must be one of the Allowed Problem Types. Follow the strict JSON format in the system prompt (Set.Total Count must equal the count; every problem Set Id must match Set.Set Id; solution() must not print; every problem must have a non-null Code Skeleton; every problem must have 3 to 5 Hidden Inputs; each problem Language must be the requested LANGUAGE).
+Generate exactly {{problemsPerSet}} problems in the Problems array, all sharing the single concept in Set.Concept Explanation. Each problem Type must be one of the Allowed Problem Types. Follow the strict JSON format in the system prompt (Set.Total Count must equal the count; every problem Set Id must match Set.Set Id; solution() must not print; every problem must have a non-null Code Skeleton; every problem must have 3 to 5 Hidden Inputs, including 1 to 2 large inputs when Constraints allow 10,000 or more elements; a Debugging problem has exactly one wrong line; each problem Language must be the requested LANGUAGE).
 
 Output valid JSON only. Do not include any prose or markdown code fences outside the JSON.

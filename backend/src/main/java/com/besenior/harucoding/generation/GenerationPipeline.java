@@ -9,6 +9,7 @@ import com.besenior.harucoding.service.ProblemEmbeddingService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -55,6 +56,65 @@ public class GenerationPipeline {
     private Duration retryWindow = Duration.ofSeconds(30);
 
     static final int MAX_HIDDEN_TESTS = 5;
+    /** 숨겨진 테스트 기대 출력의 최대 길이. 큰 입력에 긴 목록을 돌려주는 테스트는 저장·비교 부담만 커서 뺀다. */
+    static final int MAX_HIDDEN_OUTPUT_CHARS = 1000;
+
+    /**
+     * 디버깅 문제 규칙(프로그래머스 PCCE와 같은 "1줄만 수정"): 정답과 버그 코드가 정확히 1줄만 다르고,
+     * 버그 코드는 컴파일되며 예시 입력에서 틀린 결과를 내야 한다. 어기면 이유를, 지키면(또는 디버깅 문제가 아니면) null.
+     * 예전에는 버그 코드를 실행해 보지 않아, 버그가 출력에 영향이 없으면 고치지 않고 제출해도 정답이 될 수 있었다.
+     */
+    String debuggingRuleViolation(JsonNode pNode, String language) {
+        if (!"debugging".equalsIgnoreCase(pNode.path("Type").asText(""))) {
+            return null;
+        }
+        String skeleton = pNode.path("Code Skeleton").asText("");
+        if (differentLines(skeleton, pNode.path("Answer").asText("")) != 1) {
+            return "정답과 버그 코드가 정확히 1줄만 다르지 않음";
+        }
+        ObjectNode buggy = pNode.deepCopy();
+        buggy.put("Answer", skeleton);   // 디버깅은 Answer를 그대로 실행하므로, 버그 코드를 넣으면 버그 코드가 실행된다
+        VerifyResult r = codeVerifier.verify(buggy, language);
+        if (r.ok()) {
+            return "버그 코드가 예시 입력에서 맞는 결과를 냄";
+        }
+        if ("compile_error".equals(r.reason())) {
+            return "버그 코드가 컴파일되지 않음(문법 오류가 아닌 논리 오류여야 함)";
+        }
+        return null;
+    }
+
+    /** 두 코드에서 서로 다른 줄의 수. 줄 수가 다르면 -1. 줄 앞뒤 공백과 끝의 빈 줄은 무시한다. */
+    static int differentLines(String a, String b) {
+        List<String> x = codeLines(a);
+        List<String> y = codeLines(b);
+        if (x.size() != y.size()) {
+            return -1;
+        }
+        int diff = 0;
+        for (int i = 0; i < x.size(); i++) {
+            if (!x.get(i).equals(y.get(i))) diff++;
+        }
+        return diff;
+    }
+
+    private static List<String> codeLines(String code) {
+        List<String> lines = new ArrayList<>();
+        for (String line : code.replace("\r\n", "\n").split("\n", -1)) {
+            lines.add(line.strip());
+        }
+        while (!lines.isEmpty() && lines.get(lines.size() - 1).isEmpty()) {
+            lines.remove(lines.size() - 1);
+        }
+        return lines;
+    }
+
+    static List<Map<String, String>> dropLongOutputs(List<Map<String, String>> tests) {
+        return tests.stream()
+                .filter(t -> t.get("output") == null || t.get("output").length() <= MAX_HIDDEN_OUTPUT_CHARS)
+                .toList();
+    }
+
     /** 숨겨진 테스트 입력 하나의 최대 길이. 지나치게 큰 입력은 채점 시간만 늘린다. */
     static final int MAX_HIDDEN_INPUT_CHARS = 2000;
 
@@ -91,9 +151,14 @@ public class GenerationPipeline {
                     log.info("[{}/{}] 문제 검증 실패 [{}]: {}", attempt, MAX_RETRIES, vr.reason(), vr.detail());
                     continue;
                 }
+                String debugViolation = debuggingRuleViolation(pNode, language);
+                if (debugViolation != null) {
+                    log.info("[{}/{}] 디버깅 문제 제외: {}", attempt, MAX_RETRIES, debugViolation);
+                    continue;
+                }
                 // 숨겨진 테스트: 출력은 AI가 쓴 값이 아니라 검증을 통과한 정답 코드를 실행해 계산한다
-                List<Map<String, String>> hiddenTests =
-                        codeVerifier.computeOutputs(pNode, language, hiddenInputs(pNode));
+                List<Map<String, String>> hiddenTests = dropLongOutputs(
+                        codeVerifier.computeOutputs(pNode, language, hiddenInputs(pNode)));
                 if (hiddenTests.isEmpty()) {
                     log.info("[{}/{}] 숨겨진 테스트 없음(입력 누락 또는 정답 코드 실행 실패) → 예시로만 채점됨",
                             attempt, MAX_RETRIES);
