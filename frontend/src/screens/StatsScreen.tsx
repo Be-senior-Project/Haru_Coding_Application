@@ -35,7 +35,7 @@ const md = (d: Date) => `${d.getMonth() + 1}.${d.getDate()}`;
 // 월간 달력(일요일 시작)과 연간 히트맵(월요일 시작)의 요일 순서는 피그마 디자인을 따른다
 const CAL_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 const HEAT_DAYS = ['월', '화', '수', '목', '금', '토', '일'];
-const HEAT_OPACITY = [0.3, 0.5, 0.75, 1]; // 히트맵 1~4단계 진하기(0단계는 border 색)
+const HEAT_OPACITY = [0.3, 0.5, 0.75, 1]; // 히트맵 1~4단계(1·2·3·4문제 이상) 진하기. 0단계는 border 색
 const HEAT_LABEL_W = 14;  // 히트맵 왼쪽 요일 칸 너비
 const HEAT_GAP = 2;       // 히트맵 칸 사이 간격
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -429,8 +429,9 @@ function YearHeatmap({daily, styles, colors}: {daily: Record<string, number>; st
   const halves = [halfYear(y, 0), halfYear(y, 6)];
   const cols = Math.max(...halves.map(h => h.cols));
   const cell = width > 0 ? (width - HEAT_LABEL_W - cols * HEAT_GAP) / cols : 0;
-  const max = Math.max(1, ...Object.values(daily));
-  const level = (n: number) => (n <= 0 ? 0 : Math.min(4, Math.ceil((n / max) * 4)));
+  // 진하기는 그날 푼 문제 수 그대로 1·2·3·4문제 이상(하루 목표 최소값 4)으로 나눈다.
+  // 가장 많이 푼 날을 기준으로 나누면 하루만 많이 풀어도 나머지 날이 모두 옅어진다.
+  const level = (n: number) => Math.max(0, Math.min(4, n));
   // 0단계는 border 색, 1~4단계는 primary 색의 진하기만 달리한다(새 색을 만들지 않음)
   const tone = (lv: number) =>
     lv === 0 ? {backgroundColor: colors.border} : {backgroundColor: colors.primary, opacity: HEAT_OPACITY[lv - 1]};
@@ -535,7 +536,8 @@ function makeStyles(c: Colors, fs: number) {
     calCell: {flex: 1},
     calDay: {height: 40 * fs, alignItems: 'center', justifyContent: 'center', borderRadius: 20 * fs},
     calDayOn: {backgroundColor: c.primary},
-    calJoinLeft: {borderTopLeftRadius: 0, borderBottomLeftRadius: 0},
+    // 칸 너비가 소수점이라 생기는 칸 사이 가는 틈을 덮으려고 왼쪽으로 1만큼 겹친다
+    calJoinLeft: {borderTopLeftRadius: 0, borderBottomLeftRadius: 0, marginLeft: -1},
     calJoinRight: {borderTopRightRadius: 0, borderBottomRightRadius: 0},
     calNum: {fontSize: 14 * fs, color: c.subText},
     calNumOn: {fontSize: 14 * fs, fontWeight: '800', color: c.onPrimary},
