@@ -35,7 +35,7 @@ src/data/        mock 데이터 + 로컬 저장(scrap.ts)
 ## 규칙
 
 - 네트워크 호출은 반드시 `src/api/apiFetch.ts`의 `api.get/post/patch/del` 사용. `fetch` 직접 호출 금지.
-- `BASE_URL = http://10.0.2.2:8080` (안드로이드 에뮬레이터 → 호스트 localhost). 실기기 테스트 시에만 변경.
+- 백엔드 주소는 `src/api/config.ts`의 `API_BASE_URL` 하나만 쓴다 (주소 하드코딩 금지). `.env`의 `API_BASE_URL`이 우선이고, 비어 있으면 개발 빌드는 `http://10.0.2.2:8080`(에뮬레이터 → 호스트), 릴리스 APK는 `https://haru.careerpilot.kr`. 설정법은 `.env.example` 참고.
 - 토큰: `accessToken`/`refreshToken`을 AsyncStorage에 저장. 401/403 자동 갱신은 apiFetch가 처리하므로 화면에서 재시도 로직 추가 금지.
 - 응답은 `json.data ?? json`으로 이미 언랩됨. 화면에서 `.data` 다시 벗기지 말 것.
 - 사용자에게 보이는 문구·에러 메시지는 한국어 존댓말 ("~했어요" 톤).

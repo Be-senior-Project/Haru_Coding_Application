@@ -1,21 +1,21 @@
-version: '3.8'
-
+# 로컬 개발용. 값은 같은 폴더의 .env에서 읽고, 없으면 아래 기본값을 쓴다 (.env.example 참고).
+# 서버(운영)용은 deploy/docker-compose.yml.
 services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: harucoding-db
     environment:
-      POSTGRES_DB: HaruCoding
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: root1212
+      POSTGRES_DB: ${DB_NAME:-HaruCoding}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-root1212}
     # 호스트 포트 5433로 매핑(다른 postgres와 충돌 방지). 컨테이너 내부는 5432 유지.
     ports:
-      - "5433:5432"
+      - "${DB_PORT:-5433}:5432"
     volumes:
       - harucoding_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d HaruCoding"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -28,17 +28,19 @@ services:
       postgres:
         condition: service_healthy
     # datasource는 표준 Spring 환경변수로 오버라이드(컨테이너 내부에선 postgres 서비스로 접속).
-    # 나머지 비밀값(OPENAI_API_KEY, ENCRYPTION_SECRET_KEY, GOOGLE 등)은 호스트 .env를 마운트해 그대로 사용.
     # 비밀값은 compose가 호스트 .env에서 읽어 컨테이너 환경변수로 주입(파일 마운트 X).
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/HaruCoding
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: root1212
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-HaruCoding}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-root1212}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       ENCRYPTION_SECRET_KEY: ${ENCRYPTION_SECRET_KEY}
       Haru_Coding_backend_CLIENT_ID: ${GOOGLE_CLIENT_ID:-dummy-client-id}
+      # 로컬 전용 기본값. 운영 서버는 deploy/.env의 JWT_SECRET(새로 생성한 값)을 쓴다.
+      JWT_SECRET: ${JWT_SECRET:-local-dev-only-jwt-secret-not-for-production-0123456789}
+      SEED_AUTOLOAD: ${SEED_AUTOLOAD:-true}
     ports:
-      - "8080:8080"
+      - "${API_PORT:-8080}:8080"
     restart: unless-stopped
 
 volumes:

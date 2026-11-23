@@ -43,14 +43,26 @@ jobs:
   deploy:
     needs: build-push
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: appleboy/ssh-action@v1
+        env:
+          # 이 job 동안만 유효한 토큰. 서버에 PAT를 두지 않고 pull 때만 로그인한다.
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: GHCR_TOKEN,GHCR_USER
           script: |
+            set -e
             cd ~/haru
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
             docker compose pull app
             docker compose up -d app
             docker image prune -f
+            docker compose ps app
