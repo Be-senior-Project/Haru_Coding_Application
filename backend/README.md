@@ -89,7 +89,7 @@ docker run --rm -v "$PWD:/work" -v haru-gradle-cache:/root/.gradle -w /work ecli
 
 - DB 구조는 처음 만들 때 `init.sql`이 만들고, 엔티티에 새로 생긴 컬럼은 Hibernate(`ddl-auto=update`)가 채웁니다.
 - 서버를 켜면 시드 문제(`resources/json/all_seeds.json`)를 적재하고(`seed.autoload`), 문제 분류 3개의 주제를 준비합니다.
-- `HaruCodingBackendApplicationTests`는 `DB_URL` 환경변수가 있을 때만 실행됩니다.
+- `HaruCodingBackendApplicationTests`는 DB 접속 주소(`SPRING_DATASOURCE_URL` 또는 `DB_URL`) 환경변수가 있을 때만 실행됩니다. CI는 DB 서비스를 띄워 이 테스트까지 돌립니다.
 
 ## 문서
 
