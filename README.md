@@ -108,6 +108,7 @@ npm run android    # 다른 터미널에서 빌드·설치
 | CI | main으로 가는 PR마다 GitHub Actions가 검사합니다 (백엔드 테스트·Docker 빌드, 프론트 lint·타입 검사·테스트) |
 | 배포 | main에 `backend/` 변경이 merge되면 GitHub Actions가 이미지를 빌드해 GHCR에 올리고, SSH로 서버에서 새 이미지를 받아 API를 다시 띄웁니다. 수동 실행: Actions → Deploy Backend → Run workflow |
 | 앱 빌드 | 릴리스 빌드는 `frontend/.env`의 `API_BASE_URL`이 비어 있으면 운영 서버로 붙습니다. 개발 빌드로 운영 서버를 쓰려면 `API_BASE_URL=https://haru.careerpilot.kr` |
+| 앱 배포 (APK) | `app-v1.0.0` 같은 태그를 push하면 GitHub Actions가 APK를 빌드해 GitHub Release에 첨부합니다. 수동 실행: Actions → Build Android APK → Run workflow (Artifacts에 90일 보관). 저장소 Secret `GOOGLE_WEB_CLIENT_ID`가 필요합니다. 서버만 바뀐 경우엔 APK를 다시 만들 필요가 없습니다. |
 
 - Cloudflare는 100초 안에 응답이 없으면 오류(524)를 돌려줍니다. 서버는 외부 호출 시간 제한과 문제 생성 재시도 제한으로 이 시간 안에 응답합니다.
 - 운영 서버는 외부에 443만 엽니다. API는 호스트 포트를 열지 않고(Caddy가 내부망으로 연결), DB는 서버 안(127.0.0.1)에서만 접속됩니다.
