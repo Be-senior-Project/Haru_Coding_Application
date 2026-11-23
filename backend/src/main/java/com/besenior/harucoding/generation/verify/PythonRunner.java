@@ -6,13 +6,15 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * Python 검증기.
- * 조립: import json / {answerCode} / {ioInput} / print(json.dumps(solution(args), ensure_ascii=False))
+ * Python 실행기.
+ * 조립: import json / {answerCode} / (입력별) {ioInput} + print(json.dumps(solution(args), ensure_ascii=False))
  */
 public class PythonRunner implements Runner {
 
     private static final int EXEC_TIMEOUT = 5;
     private static final int PROBE_TIMEOUT = 5;
+    /** 사용자 코드 하나가 서버 메모리를 다 쓰지 못하게 하는 주소 공간 상한(격리 실행 시에만 적용). */
+    private static final long EXEC_MEMORY_LIMIT = 512L * 1024 * 1024;
 
     /** 인터프리터 이름은 OS마다 다르다. macOS·Linux는 python3, Windows 설치본은 대개 python 또는 py. */
     private static final List<String> PYTHON_CANDIDATES = List.of("python3", "python", "py");
@@ -55,17 +57,25 @@ public class PythonRunner implements Runner {
         }
     }
 
+    /** 입력별로 변수 선언 + solution 호출 결과 출력을 이어 붙인다. 파이썬은 같은 이름을 다시 대입해도 된다. */
+    static String buildProgram(String answerCode, List<String> ioInputs, String args) {
+        StringBuilder sb = new StringBuilder("import json\n").append(answerCode).append("\n\n");
+        for (String io : ioInputs) {
+            sb.append(io).append('\n')
+                    .append("print(json.dumps(solution(").append(args).append("), ensure_ascii=False))\n");
+        }
+        return sb.toString();
+    }
+
     @Override
-    public VerifyResult run(String answerCode, String ioInput, String expectedOutput, String signature) {
+    public ExecutionResult execute(String answerCode, List<String> ioInputs, String signature) {
         List<String> params;
         try {
             params = SignatureParser.extractParamNames(signature);
         } catch (Exception e) {
-            return VerifyResult.fail("internal_error", "Signature 파싱 실패: " + e.getMessage());
+            return ExecutionResult.fail("internal_error", "Signature 파싱 실패: " + e.getMessage());
         }
-        String args = String.join(", ", params);
-        String program = "import json\n" + answerCode + "\n\n" + ioInput + "\n"
-                + "print(json.dumps(solution(" + args + "), ensure_ascii=False))\n";
+        String program = buildProgram(answerCode, ioInputs, String.join(", ", params));
 
         Path tmp = null;
         try {
@@ -74,22 +84,19 @@ public class PythonRunner implements Runner {
             Files.writeString(script, program);
 
             ProcessUtils.Result r = ProcessUtils.run(
-                    List.of(pythonCommand(), script.toString()), tmp.toFile(), EXEC_TIMEOUT);
+                    List.of(pythonCommand(), script.toString()), tmp.toFile(), EXEC_TIMEOUT, EXEC_MEMORY_LIMIT);
 
             if (r.timedOut()) {
-                return VerifyResult.fail("timeout", "실행 시간 " + EXEC_TIMEOUT + "초 초과");
+                return ExecutionResult.fail("timeout", "실행 시간 " + EXEC_TIMEOUT + "초 초과");
             }
             if (r.exit() != 0) {
-                return VerifyResult.fail("runtime_error", RunnerSupport.blankToDefault(r.stderr(), "non-zero exit code"));
+                return ExecutionResult.fail("runtime_error",
+                        RunnerSupport.blankToDefault(r.stderr(), "non-zero exit code"),
+                        RunnerSupport.outputLines(r.stdout()));
             }
-            String actual = r.stdout().strip();
-            String expected = expectedOutput.strip();
-            if (!actual.equals(expected)) {
-                return VerifyResult.fail("output_mismatch", "expected: " + expected + ", actual: " + actual, actual);
-            }
-            return VerifyResult.pass(actual);
+            return ExecutionResult.success(RunnerSupport.outputLines(r.stdout()));
         } catch (Exception e) {
-            return VerifyResult.fail("internal_error", "실행 오류: " + e.getMessage());
+            return ExecutionResult.fail("internal_error", "실행 오류: " + e.getMessage());
         } finally {
             RunnerSupport.deleteQuietly(tmp);
         }

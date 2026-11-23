@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
@@ -94,11 +93,11 @@ export default function SignupScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    // Android 15 이상(edge-to-edge)은 adjustResize만으로 화면이 줄지 않아 Android에서도 padding으로 키보드를 피한다.
+    // 상단 여백(insets.top)은 스크롤 영역 밖에 둬서 스크롤한 내용이 상태 표시줄 밑으로 들어가지 않게 한다.
+    <KeyboardAvoidingView style={[styles.container, {paddingTop: insets.top}]} behavior="padding">
       <ScrollView
-        contentContainerStyle={[styles.inner, {paddingTop: insets.top + 16}]}
+        contentContainerStyle={[styles.inner, styles.innerTop]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} hitSlop={8}>
@@ -287,6 +286,7 @@ function makeStyles(c: Colors, fs: number) {
   return StyleSheet.create({
     container: {flex: 1, backgroundColor: c.bg},
     inner: {paddingHorizontal: 28, paddingBottom: 48},
+    innerTop: {paddingTop: 16},
     backBtn: {marginBottom: 20, alignSelf: 'flex-start'},
     title: {fontSize: 28 * fs, fontWeight: '800', color: c.text, marginBottom: 6},
     subtitle: {fontSize: 14 * fs, color: c.subText, marginBottom: 32},

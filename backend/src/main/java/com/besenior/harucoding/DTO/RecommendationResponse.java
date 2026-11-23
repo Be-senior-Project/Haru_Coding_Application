@@ -37,7 +37,7 @@ public class RecommendationResponse {
     @Builder
     public static class AreaStat {
         private String area;        // subcategory(없으면 category)
-        private int attempts;       // 시도 수
+        private int attempts;       // 푼 문제 수(문제별 첫 제출 기준)
         private int correct;        // 정답 수
         private double accuracyRate; // 0~100
     }

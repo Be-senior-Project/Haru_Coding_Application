@@ -8,7 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
+  ScrollView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useNavigation} from '@react-navigation/native';
@@ -21,7 +21,7 @@ import {login, googleLogin, AuthApiError} from '../api/authApi';
 import {validateEmail} from '../utils/authValidation';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-// TODO: 백엔드 연동 시 실제 클라이언트 ID로 교체
+// 구글 로그인 웹 클라이언트 ID는 frontend/.env의 GOOGLE_WEB_CLIENT_ID에서 읽는다(서버의 GOOGLE_CLIENT_ID와 같은 값).
 import {GOOGLE_WEB_CLIENT_ID} from '@env';
 
 GoogleSignin.configure({
@@ -101,10 +101,11 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={[styles.inner, {paddingTop: insets.top + 56}]}>
+    // Android 15 이상(edge-to-edge)은 adjustResize만으로 화면이 줄지 않아 Android에서도 padding으로 키보드를 피한다.
+    // 키보드 때문에 높이가 모자라면 스크롤되도록 ScrollView로 감쌌다(키보드가 없을 땐 화면을 꽉 채워 이전과 같게 보임).
+    <KeyboardAvoidingView style={[styles.container, {paddingTop: insets.top}]} behavior="padding">
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <View style={styles.inner}>
         <View style={styles.logoBox}>
           <MaterialIcons name="code" size={34} color={colors.primary} />
         </View>
@@ -211,6 +212,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
       </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -227,7 +229,8 @@ function ErrorText({text, styles, color}: {text: string; styles: ReturnType<type
 function makeStyles(c: Colors, fs: number) {
   return StyleSheet.create({
     container: {flex: 1, backgroundColor: c.bg},
-    inner: {flex: 1, paddingHorizontal: 28, paddingBottom: 28},
+    scrollContent: {flexGrow: 1},
+    inner: {flex: 1, paddingHorizontal: 28, paddingTop: 56, paddingBottom: 28},
 
     logoBox: {
       width: 64, height: 64, borderRadius: 18, backgroundColor: c.primarySoft,

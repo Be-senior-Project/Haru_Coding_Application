@@ -14,3 +14,6 @@ require(
     'jest/build/jest/setup.js',
   ),
 );
+
+// 테스트에서는 실제 서버로 요청하지 않는다(화면이 처음 그려질 때 보내는 요청이 연결을 기다리며 jest 종료를 늦춘다)
+global.fetch = jest.fn(() => Promise.reject(new Error('테스트에서는 네트워크를 쓰지 않습니다')));

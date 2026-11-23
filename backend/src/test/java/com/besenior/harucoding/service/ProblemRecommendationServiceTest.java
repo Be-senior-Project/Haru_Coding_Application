@@ -80,7 +80,7 @@ class ProblemRecommendationServiceTest {
     }
 
     @Test
-    void 선호_언어가_없으면_모든_언어의_문제가_후보에_포함된다() {
+    void 선호_언어가_없으면_Python_문제만_추천한다() {
         service = new ProblemRecommendationService(userRepository, recordRepository, problemRepository, embeddingRepository);
         User user = userWith(null, null);
 
@@ -93,7 +93,9 @@ class ProblemRecommendationServiceTest {
 
         RecommendationResponse res = service.recommend(1L, 5);
 
-        assertThat(res.getRecommendations()).hasSize(2);
+        // 언어를 고르지 않으면 Python(세트의 약점 몫·생성과 같은 언어). 예전에는 모든 언어를 섞어 추천했다.
+        assertThat(res.getRecommendations()).hasSize(1);
+        assertThat(res.getRecommendations().get(0).getLanguage()).isEqualTo("Python");
     }
 
     @Test

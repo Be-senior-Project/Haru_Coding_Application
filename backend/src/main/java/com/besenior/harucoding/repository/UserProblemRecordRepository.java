@@ -10,15 +10,28 @@ public interface UserProblemRecordRepository extends JpaRepository<UserProblemRe
 
     List<UserProblemRecord> findByUserIdOrderBySolvedAtDesc(Long userId);
 
+    /** 이 문제를 이미 맞힌 적이 있는지. XP는 문제별 첫 정답에만 준다. */
+    @Query("""
+        SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END FROM UserProblemRecord r
+        WHERE r.user.id = :userId
+        AND r.problem.id = :problemId
+        AND r.isCorrect = true
+        """)
+    boolean existsCorrect(@Param("userId") Long userId, @Param("problemId") Long problemId);
+
+    /** 첫 제출에서 맞힌 문제 수. 같은 문제를 다시 제출한 기록은 세지 않는다(학습 통계와 같은 기준). */
     @Query("""
         SELECT COUNT(r) FROM UserProblemRecord r
         WHERE r.user.id = :userId
         AND r.isCorrect = true
+        AND r.id = (SELECT MIN(r2.id) FROM UserProblemRecord r2
+                    WHERE r2.user.id = r.user.id AND r2.problem.id = r.problem.id)
         """)
     long countCorrectByUserId(@Param("userId") Long userId);
 
+    /** 푼 문제 수(서로 다른 문제 수). */
     @Query("""
-        SELECT COUNT(r) FROM UserProblemRecord r
+        SELECT COUNT(DISTINCT r.problem.id) FROM UserProblemRecord r
         WHERE r.user.id = :userId
         """)
     long countTotalByUserId(@Param("userId") Long userId);
@@ -35,4 +48,6 @@ public interface UserProblemRecordRepository extends JpaRepository<UserProblemRe
         ORDER BY r.solvedAt DESC
         """)
     List<UserProblemRecord> findWrongRecordsByUserId(@Param("userId") Long userId);
+
+    void deleteAllByUserId(Long userId);
 }

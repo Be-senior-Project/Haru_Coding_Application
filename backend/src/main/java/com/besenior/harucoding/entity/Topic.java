@@ -28,4 +28,14 @@ public class Topic {
         this.description = description;
         this.icon = icon;
     }
+
+    /** 비어 있는 설명·아이콘만 채운다(이미 있는 값은 그대로 둔다). */
+    public void fillIfEmpty(String description, String icon) {
+        if (this.description == null || this.description.isBlank()) {
+            this.description = description;
+        }
+        if (this.icon == null || this.icon.isBlank()) {
+            this.icon = icon;
+        }
+    }
 }

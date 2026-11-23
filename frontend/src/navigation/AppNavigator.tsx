@@ -8,6 +8,7 @@ import HomeScreen from '../screens/HomeScreen';
 import StatsScreen from '../screens/StatsScreen';
 import ProblemBankScreen from '../screens/ProblemBankScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import LeagueScreen from '../screens/LeagueScreen';
 import ProfileEditScreen from '../screens/ProfileEditScreen';
 import ProblemSolveScreen from '../screens/ProblemSolveScreen';
 import LoginScreen from '../screens/LoginScreen';
@@ -53,6 +54,7 @@ export type RootStackParamList = {
 export type TabParamList = {
   홈: undefined;
   문제: undefined;
+  리그: undefined;
   '학습 통계': undefined;
   마이페이지: undefined;
 };
@@ -63,6 +65,7 @@ const Tab = createBottomTabNavigator<TabParamList>();
 const TAB_ICON_NAMES: Record<string, string> = {
   홈: 'home',
   문제: 'layers',
+  리그: 'emoji-events',
   '학습 통계': 'bar-chart',
   마이페이지: 'person-outline',
 };
@@ -88,6 +91,7 @@ function TabNavigator() {
       })}>
       <Tab.Screen name="홈" component={HomeScreen} />
       <Tab.Screen name="문제" component={ProblemBankScreen} />
+      <Tab.Screen name="리그" component={LeagueScreen} />
       <Tab.Screen name="학습 통계" component={StatsScreen} />
       <Tab.Screen name="마이페이지" component={ProfileScreen} />
     </Tab.Navigator>

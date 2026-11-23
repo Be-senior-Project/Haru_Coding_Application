@@ -24,6 +24,14 @@ public enum ErrorCode {
 
     // 문제
     PROBLEM_NOT_FOUND    (HttpStatus.NOT_FOUND,    "문제를 찾을 수 없습니다."),
+    GENERATION_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "오늘 새로 만들 수 있는 문제 수를 모두 사용했습니다. 내일 다시 시도해주세요."),
+    ANSWER_TOO_LARGE     (HttpStatus.BAD_REQUEST,  "답안이 너무 깁니다. 코드는 20,000자, 빈칸은 20개·칸당 500자까지 제출할 수 있습니다."),
+
+    // 요청
+    REQUEST_TOO_LARGE    (HttpStatus.PAYLOAD_TOO_LARGE, "요청 크기가 너무 큽니다."),
+
+    // 관리
+    ADMIN_ONLY           (HttpStatus.FORBIDDEN,    "관리자만 사용할 수 있는 기능입니다."),
 
     // 알림
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND,   "알림을 찾을 수 없습니다.");

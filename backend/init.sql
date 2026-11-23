@@ -65,12 +65,7 @@ CREATE TABLE IF NOT EXISTS topics (
     icon        VARCHAR(100)
     );
 
-INSERT INTO topics (name, description, icon) VALUES
-                                                 ('알고리즘',    '정렬, 탐색, 그리디, DP 등',    'account-tree'),
-                                                 ('자료구조',    '스택, 큐, 트리, 그래프 등',     'data-object'),
-                                                 ('언어/문법',   '언어별 문법 및 개념',            'code'),
-                                                 ('모의테스트',  '실전형 종합 문제',               'assignment')
-    ON CONFLICT (name) DO NOTHING;
+-- topics 초기 데이터는 서버가 시작될 때 문제 분류 3개로 만든다(TopicInitializer). 예전 한국어 주제 4개는 문제 분류와 이름이 달라 쓰이지 않았다.
 
 -- ────────────────────────────────────────────
 -- 4. problems
@@ -97,8 +92,12 @@ CREATE TABLE IF NOT EXISTS problems (
     answer              JSONB           NOT NULL,                    -- 문자열 또는 문자열 배열
     explanation         TEXT            NOT NULL,
     concept_explanation TEXT,                                        -- seed의 set 단위 개념 설명
+    hidden_tests        JSONB,                                       -- 숨겨진 테스트 [{"input","output"}] (채점 전용, 응답 미포함)
     created_at          TIMESTAMP       NOT NULL DEFAULT NOW()
     );
+
+-- 이미 초기화된 DB에도 반영되도록 가드 (CREATE TABLE IF NOT EXISTS라 컬럼 추가는 안 됨)
+ALTER TABLE problems ADD COLUMN IF NOT EXISTS hidden_tests JSONB;
 
 CREATE INDEX IF NOT EXISTS idx_problems_difficulty
     ON problems(difficulty);
@@ -242,3 +241,24 @@ CREATE TABLE IF NOT EXISTS notifications (
     );
 
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
+
+-- ────────────────────────────────────────────
+-- 14. seed_sets (문제 생성 프롬프트에 넣는 예시 세트. 사용자에게는 서빙하지 않음)
+-- ────────────────────────────────────────────
+-- 예전에는 Hibernate(ddl-auto)가 만들던 테이블이다. 새 DB(운영 RDS 등)에서도 init.sql만으로
+-- 전체 구조가 만들어지도록 여기에 둔다. 서버 첫 기동 시 SeedLoader가 all_seeds.json을 적재한다.
+CREATE TABLE IF NOT EXISTS seed_sets (
+    id                  BIGSERIAL PRIMARY KEY,
+    category            VARCHAR(255) NOT NULL,
+    subcategory         VARCHAR(255),
+    difficulty          INT          NOT NULL,
+    language            VARCHAR(255) NOT NULL,
+    concept_explanation TEXT,
+    problems            JSONB,
+    embedding           VECTOR(1536)            -- SeedLoader가 적재 직후 채움
+);
+
+CREATE INDEX IF NOT EXISTS idx_seed_sets_filter
+    ON seed_sets(category, language, difficulty);
+CREATE INDEX IF NOT EXISTS idx_seed_sets_vec
+    ON seed_sets USING hnsw (embedding vector_cosine_ops);

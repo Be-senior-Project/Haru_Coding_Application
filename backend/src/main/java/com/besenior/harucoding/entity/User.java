@@ -65,7 +65,7 @@ public class User {
     private int dailyGoalCount = 3;
 
     @Column(length = 2)
-    private String difficultyLevel; // L1~L5, NULL이면 자동 추천(estimateLevel) 유지
+    private String difficultyLevel; // L1~L5(앱은 입문·초급·중급을 L1·L3·L5로 저장). NULL이면 자동 추천(estimateLevel)
 
     private String fcmToken;
 
@@ -108,5 +108,14 @@ public class User {
     public void updateOnboarding(String codingLevel, boolean cotePrepared) {
         this.codingLevel = codingLevel;
         this.cotePrepared = cotePrepared;
+    }
+
+    public void addXp(int amount) {
+        this.xp += amount;
+        this.level = (this.xp / 100) + 1;
+    }
+
+    public void updateStreakDays(int days) {
+        this.streakDays = days;
     }
 }

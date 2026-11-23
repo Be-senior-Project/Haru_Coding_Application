@@ -32,10 +32,12 @@ class ProblemServiceRunTest {
     @Mock private UserXpLogRepository xpLogRepository;
     @Mock private TopicRepository topicRepository;
     @Mock private CodeVerifier codeVerifier;
+    @Mock private LeagueService leagueService;
 
     private ProblemService service() {
         return new ProblemService(problemRepository, userRepository, recordRepository, streakLogRepository,
-                categoryStatRepository, xpLogRepository, topicRepository, new ObjectMapper(), codeVerifier);
+                categoryStatRepository, xpLogRepository, topicRepository, new ObjectMapper(), codeVerifier,
+                leagueService);
     }
 
     private Problem runnableProblem() {

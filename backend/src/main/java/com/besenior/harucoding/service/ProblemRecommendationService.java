@@ -14,6 +14,8 @@ import com.besenior.harucoding.repository.ProblemEmbeddingRepository;
 import com.besenior.harucoding.repository.ProblemRepository;
 import com.besenior.harucoding.repository.UserProblemRecordRepository;
 import com.besenior.harucoding.repository.UserRepository;
+import com.besenior.harucoding.global.util.DifficultyRules;
+import com.besenior.harucoding.global.util.LanguageRules;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -86,9 +88,10 @@ public class ProblemRecommendationService {
 
         // users.preferred_language(JAVA/PYTHON/C/JS) → problems.language(Python/Java/C++)로 정규화.
         // 정규화 없이 그대로 비교하면 대소문자·표기가 달라 필터가 항상 무효가 된다.
-        String lang = mapLanguage(user.getPreferredLanguage());   // null 이면 전체 언어
+        // 언어를 고르지 않았으면 Python(LanguageRules). 세트의 약점 몫·생성과 같은 언어라 한 세트 안에서 언어가 섞이지 않는다.
+        String lang = LanguageRules.problemLanguage(user.getPreferredLanguage());
         // 유저가 마이페이지에서 난이도(L1~L5)를 직접 골랐으면 그 값을 우선 사용, 아니면 자동 추정.
-        Integer manualLevel = mapDifficultyLevel(user.getDifficultyLevel());
+        Integer manualLevel = DifficultyRules.fromUserSetting(user.getDifficultyLevel());
         int level = manualLevel != null ? manualLevel : estimateLevel(user, records);
         int lo = Math.max(0, level - 1);
         int hi = Math.min(2, level + 1);
@@ -248,61 +251,24 @@ public class ProblemRecommendationService {
                 .collect(Collectors.toList());
     }
 
-    // L1~L5(프로그래머스 기준) → 생성/추천 난이도(0/1/2). 0레벨:L1, 1레벨:L2~L3, 2레벨:L4~L5.
-    private Integer mapDifficultyLevel(String difficultyLevel) {
-        if (difficultyLevel == null) return null;
-        return switch (difficultyLevel) {
-            case "L1" -> 0;
-            case "L2", "L3" -> 1;
-            case "L4", "L5" -> 2;
-            default -> null;
-        };
-    }
-
-    // 선호 언어(JAVA/PYTHON/C/JS) → 문제 언어(Python/Java/C++). ProblemSetSessionService와 동일 매핑.
-    private String mapLanguage(String preferred) {
-        if (preferred == null) return null;
-        return switch (preferred) {
-            case "JAVA" -> "Java";
-            case "PYTHON" -> "Python";
-            case "C" -> "C++";
-            default -> null; // JS 등 매칭되는 문제 언어가 없으면 언어 필터 없이 추천
-        };
-    }
-
     // ── 역량 요약 ────────────────────────────────────────────────────
     private CompetencySummary buildSummary(List<UserProblemRecord> records, int level) {
         long total = records.size();
         long correct = records.stream().filter(UserProblemRecord::isCorrect).count();
         double accuracy = total == 0 ? 0.0 : round1((double) correct / total * 100);
 
-        // 영역(subcategory, 없으면 category)별 집계
-        Map<String, int[]> byArea = new HashMap<>(); // [attempts, correct]
-        for (UserProblemRecord r : records) {
-            String area = area(r.getProblem());
-            int[] s = byArea.computeIfAbsent(area, k -> new int[2]);
-            s[0]++;
-            if (r.isCorrect()) s[1]++;
-        }
+        // 영역(subcategory, 없으면 category)별 집계. 약점 판단은 공용 기준(WeaknessAnalyzer)을 따른다:
+        // 문제별 첫 제출 기준, 3문제 이상 풀고 정답률 70% 미만. 학습 통계 화면·오늘의 세트와 같은 기준이다.
+        Map<String, WeaknessAnalyzer.AreaStat> byArea =
+                WeaknessAnalyzer.group(WeaknessAnalyzer.firstAttempts(records), this::area);
 
-        List<AreaStat> stats = byArea.entrySet().stream()
-                .map(e -> AreaStat.builder()
-                        .area(e.getKey())
-                        .attempts(e.getValue()[0])
-                        .correct(e.getValue()[1])
-                        .accuracyRate(round1((double) e.getValue()[1] / e.getValue()[0] * 100))
-                        .build())
-                .toList();
+        List<AreaStat> weak = WeaknessAnalyzer.weakAreas(byArea.values()).stream()
+                .limit(5).map(this::toAreaStat).toList();
 
-        List<AreaStat> weak = stats.stream()
-                .filter(s -> s.getAttempts() >= 2 && s.getAccuracyRate() < 50.0)
-                .sorted(Comparator.comparingDouble(AreaStat::getAccuracyRate))
-                .limit(5).toList();
-
-        List<AreaStat> strong = stats.stream()
-                .filter(s -> s.getAttempts() >= 2 && s.getAccuracyRate() >= 80.0)
-                .sorted(Comparator.comparingDouble(AreaStat::getAccuracyRate).reversed())
-                .limit(5).toList();
+        List<AreaStat> strong = byArea.values().stream()
+                .filter(s -> s.solved() >= WeaknessAnalyzer.WEAK_MIN_SOLVED && s.rate() >= 80.0)
+                .sorted(Comparator.comparingDouble(WeaknessAnalyzer.AreaStat::rate).reversed())
+                .limit(5).map(this::toAreaStat).toList();
 
         return CompetencySummary.builder()
                 .totalSolved(total)
@@ -313,16 +279,20 @@ public class ProblemRecommendationService {
                 .build();
     }
 
+    private AreaStat toAreaStat(WeaknessAnalyzer.AreaStat s) {
+        return AreaStat.builder()
+                .area(s.area())
+                .attempts(s.solved())
+                .correct(s.correct())
+                .accuracyRate(s.rate())
+                .build();
+    }
+
     // ── 추정 레벨 (난이도 컨트롤러) ──────────────────────────────────
     private int estimateLevel(User user, List<UserProblemRecord> records) {
         if (records.isEmpty()) {
-            int base = switch (user.getCodingLevel() == null ? "NONE" : user.getCodingLevel()) {
-                case "LOTS" -> 2;
-                case "SOME" -> 1;
-                default -> 0;
-            };
-            if (user.isCotePrepared() && base < 2) base++;
-            return base;
+            // 풀이 기록이 없으면 온보딩 답변으로 정한다(온보딩 결과 화면의 추천 난이도와 같은 규칙)
+            return DifficultyRules.fromOnboarding(user.getCodingLevel(), user.isCotePrepared());
         }
         int best = 0;
         for (int d = 0; d <= 2; d++) {

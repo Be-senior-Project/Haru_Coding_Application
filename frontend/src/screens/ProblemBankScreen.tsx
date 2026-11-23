@@ -6,20 +6,13 @@ import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../navigation/AppNavigator';
 import {problemSets} from '../data/mockProblems';
 import type {Problem} from '../types/problem';
-import {TYPE_LABEL, difficultyLabel, difficultyColor, difficultySoft} from '../types/problem';
+import {TYPE_LABEL, categoryLabel, difficultyLabel, difficultyColor, difficultySoft} from '../types/problem';
 import {problemApi} from '../api/problemApi';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
-// 새 스키마 category/subcategory → 한글 토픽 라벨 (원본 UI 느낌)
-const TOPIC_KO: Record<string, string> = {
-  'Basic/Introductory': '기초/입문',
-  'Algorithm/Data Structure': '알고리즘',
-  'Past Exam Prep': '기출 대비',
-  'DFS/BFS': '그래프 탐색',
-  'Dynamic Programming': '동적 계획법',
-};
-const ko = (s?: string | null): string => (s ? TOPIC_KO[s] ?? s : '');
+// 영어 분류명 → 한국어 이름 (학습 통계와 같은 변환표를 쓴다)
+const ko = categoryLabel;
 
 // 백엔드가 응답하지 않을 때 쓰는 폴백: 목 세트 문제 flat + 데모 세트 ID
 type BankProblem = Problem & {demoSetId?: string};
@@ -80,9 +73,11 @@ export default function ProblemBankScreen() {
       : `${filtered.length}개의 문제가 기다리고 있어요`;
 
   return (
+    // 상단 여백(insets.top)을 스크롤 영역 밖에 둬야 스크롤한 내용이 상태 표시줄 밑으로 들어가지 않는다
+    <View style={[styles.container, {paddingTop: insets.top}]}>
     <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, {paddingTop: insets.top + 20}]}>
+      style={styles.scroll}
+      contentContainerStyle={[styles.content, styles.contentTop]}>
       <Text style={styles.title}>문제 은행</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
 
@@ -169,13 +164,16 @@ export default function ProblemBankScreen() {
         </>
       )}
     </ScrollView>
+    </View>
   );
 }
 
 function makeStyles(c: Colors, fs: number) {
   return StyleSheet.create({
     container: {flex: 1, backgroundColor: c.bg},
+    scroll: {flex: 1},
     content: {padding: 20, paddingBottom: 40},
+    contentTop: {paddingTop: 20},
 
     title: {fontSize: 22 * fs, fontWeight: '800', color: c.text, marginBottom: 2},
     subtitle: {fontSize: 13 * fs, color: c.subText, marginBottom: 16},

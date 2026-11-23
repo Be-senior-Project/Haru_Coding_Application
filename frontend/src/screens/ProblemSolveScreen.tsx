@@ -1,7 +1,8 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  TextInput, ScrollView, Alert, ActivityIndicator,
+  TextInput, ScrollView, Alert, ActivityIndicator, Modal,
+  Keyboard, KeyboardAvoidingView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -10,8 +11,8 @@ import type {RouteProp} from '@react-navigation/native';
 import type {RootStackParamList} from '../navigation/AppNavigator';
 import {problemSets} from '../data/mockProblems';
 import type {Problem} from '../types/problem';
-import {TYPE_LABEL, toCodeLang} from '../types/problem';
-import {problemApi, type CodeRunResult} from '../api/problemApi';
+import {TYPE_LABEL, categoryLabel, toCodeLang} from '../types/problem';
+import {problemApi, type AttemptResult, type CodeRunResult} from '../api/problemApi';
 import {scrapApi} from '../api/scrapApi';
 import {useTheme, type Colors} from '../theme/ThemeContext';
 import CodeBlock, {formatCode} from '../components/CodeBlock';
@@ -38,8 +39,40 @@ function countBlanks(p: Problem): number {
 function displayCode(p: Problem): string {
   const code = p.codeSkeleton ?? '';
   if (p.type === 'FILL_IN_THE_BLANK') return code.replace(/\{\{BLANK_\d+\}\}/g, '___');
-  if (p.type === 'IMPLEMENTATION') return code.replace(/\{\{CORE\}\}/g, '# (여기에 코드를 작성하세요)');
+  if (p.type === 'IMPLEMENTATION') {
+    // 언어에 맞는 주석 기호로 표시 (Java·C++에 '#'이 보이지 않게)
+    const mark = toCodeLang(p.language) === 'python' ? '#' : '//';
+    return code.replace(/\{\{CORE\}\}/g, `${mark} (여기에 코드를 작성하세요)`);
+  }
   return code;
+}
+
+// 오답 이유(서버 채점 결과). 숨겨진 테스트는 번호만 오고 입력·출력은 오지 않는다.
+type FailInfo = Pick<AttemptResult, 'failReason' | 'failedTest' | 'failMessage' | 'expectedOutput' | 'actualOutput'>;
+
+function failTitle(f: FailInfo): string | null {
+  const n = f.failedTest;
+  switch (f.failReason) {
+    case 'compile_error':
+      return '컴파일 오류가 났어요';
+    case 'runtime_error':
+      return n != null && n > 0 ? `숨겨진 테스트 ${n}번을 실행하다 오류가 났어요` : '실행 중 오류가 났어요';
+    case 'timeout':
+      return '실행 시간이 너무 길어요 (시간 초과)';
+    case 'output_mismatch':
+      if (n === 0) return '예시 입력의 출력이 달라요';
+      if (n != null && n > 0) return `숨겨진 테스트 ${n}번의 출력이 달라요`;
+      return '출력 형식이 달라요';
+    default:
+      return null;
+  }
+}
+
+// 구현 문제는 주석 자리에 들어갈 코드만 써야 한다(서버가 그 자리에 끼워 넣어 실행). 함수 전체를 쓰면 오답이 된다.
+function answerPlaceholder(p: Problem): string {
+  if (p.type === 'DEBUGGING') return '코드를 수정하세요';
+  if (p.type === 'IMPLEMENTATION') return '주석 자리에 들어갈 코드만 작성하세요';
+  return '코드를 작성하세요';
 }
 
 export default function ProblemSolveScreen() {
@@ -72,6 +105,15 @@ export default function ProblemSolveScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [startedAt, setStartedAt] = useState(Date.now());
 
+  // AI 힌트
+  const [hintVisible, setHintVisible] = useState(false);
+  const [hintLoading, setHintLoading] = useState(false);
+  const [hint1, setHint1] = useState<string | null>(null);
+  const [hint2, setHint2] = useState<string | null>(null);
+  const [hint3, setHint3] = useState<string | null>(null);
+  const [hintStep, setHintStep] = useState(1);
+  const [hintError, setHintError] = useState(false);
+
   // 코드 실행 (SOLVE-007) — 채점과 별개로 예시 입력 기준 결과만 즉시 보여준다
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<CodeRunResult | null>(null);
@@ -85,10 +127,28 @@ export default function ProblemSolveScreen() {
   const elapsedSec = Math.max(0, Math.floor((nowTick - startedAt) / 1000));
   const mmss = `${String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:${String(elapsedSec % 60).padStart(2, '0')}`;
 
+  // 키보드가 올라오면 입력 중인 칸을 키보드 위로 스크롤한다.
+  // Android 15 이상(edge-to-edge)에서는 adjustResize만으로 화면이 줄지 않아, 아래 KeyboardAvoidingView와 함께 직접 처리한다.
+  // ScrollView가 상태 표시줄 아래(insets.top)에서 시작하므로 그만큼과 여유 16을 더한다.
+  const scrollRef = useRef<ScrollView>(null);
+  const topInset = insets.top;
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidShow', () => {
+      const input = TextInput.State.currentlyFocusedInput();
+      if (input) {
+        scrollRef.current?.scrollResponderScrollNativeHandleToKeyboard(input, topInset + 16, true);
+      }
+    });
+    return () => sub.remove();
+  }, [topInset]);
+
   // 채점 결과 (목=로컬, 실=백엔드 응답)
   const [isCorrect, setIsCorrect] = useState(false);
   const [resultAnswer, setResultAnswer] = useState<string | string[] | null>(null);
   const [resultExplain, setResultExplain] = useState('');
+  // 서버 채점의 테스트 통과 수(예시 + 숨겨진 테스트). 목 데모·예전 문제(테스트 1개)는 표시하지 않는다.
+  const [resultTests, setResultTests] = useState<{passed: number; total: number} | null>(null);
+  const [resultFail, setResultFail] = useState<FailInfo | null>(null);
   const [results, setResults] = useState<{id: number; correct: boolean}[]>([]);
 
   const problem: Problem | undefined = problems[currentIndex];
@@ -177,8 +237,16 @@ export default function ProblemSolveScreen() {
     setIsCorrect(false);
     setResultAnswer(null);
     setResultExplain('');
+    setResultTests(null);
+    setResultFail(null);
     setStartedAt(Date.now());
     setRunResult(null);
+    setHintVisible(false);
+    setHint1(null);
+    setHint2(null);
+    setHint3(null);
+    setHintStep(1);
+    setHintError(false);
   }, [currentIndex, problem]);
 
   if (loading) {
@@ -222,6 +290,22 @@ export default function ProblemSolveScreen() {
         setIsCorrect(res.correct);
         setResultAnswer(res.correctAnswer);
         setResultExplain(res.explanation);
+        setResultTests(
+          res.testsTotal && res.testsTotal > 1
+            ? {passed: res.testsPassed ?? 0, total: res.testsTotal}
+            : null,
+        );
+        setResultFail(
+          !res.correct && res.failReason
+            ? {
+                failReason: res.failReason,
+                failedTest: res.failedTest,
+                failMessage: res.failMessage,
+                expectedOutput: res.expectedOutput,
+                actualOutput: res.actualOutput,
+              }
+            : null,
+        );
         setResults(prev => [...prev, {id: problem.id, correct: res.correct}]);
         const today = new Date().toISOString().split('T')[0];
         await AsyncStorage.multiSet([
@@ -255,6 +339,31 @@ export default function ProblemSolveScreen() {
         await AsyncStorage.setItem('streak', String(newStreak));
         await AsyncStorage.setItem('lastSolvedDate', today);
       }
+    }
+  };
+
+  const handleHint = async () => {
+    if (!isReal) {
+      Alert.alert('AI 힌트', '연습용 문제는 AI 힌트를 지원하지 않아요.');
+      return;
+    }
+    if (hint1 != null) {
+      setHintVisible(true);
+      return;
+    }
+    setHintVisible(true);
+    setHintLoading(true);
+    setHintError(false);
+    setHintStep(1);
+    try {
+      const res = await problemApi.hint(problem.id);
+      setHint1(res.hint1);
+      setHint2(res.hint2);
+      setHint3(res.hint3);
+    } catch {
+      setHintError(true);
+    } finally {
+      setHintLoading(false);
     }
   };
 
@@ -308,9 +417,14 @@ export default function ProblemSolveScreen() {
   const correctAnswersForHint = Array.isArray(resultAnswer) ? resultAnswer : [];
 
   return (
+    <>
+    {/* 상단 여백(insets.top)을 스크롤 영역 밖에 둬야 스크롤한 내용이 상태 표시줄 밑으로 들어가지 않는다 */}
+    <KeyboardAvoidingView style={[styles.container, {paddingTop: insets.top}]} behavior="padding">
     <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, {paddingTop: insets.top + 16}]}>
+      ref={scrollRef}
+      style={styles.scroll}
+      contentContainerStyle={[styles.content, styles.contentTop]}
+      keyboardShouldPersistTaps="handled">
 
       {/* 상단 바 */}
       <View style={styles.navRow}>
@@ -343,8 +457,16 @@ export default function ProblemSolveScreen() {
         </View>
       </View>
 
-      <View style={styles.typeBadge}>
-        <Text style={styles.typeBadgeText}>{TYPE_LABEL[problem.type]}</Text>
+      <View style={styles.badgeRow}>
+        <View style={styles.typeBadge}>
+          <Text style={styles.typeBadgeText}>{TYPE_LABEL[problem.type]}</Text>
+        </View>
+        {/* 오늘의 세트에서 약점 영역 문제로 출제된 경우 그 이유를 보여 준다 */}
+        {!!problem.weakArea && (
+          <View style={styles.weakBadge}>
+            <Text style={styles.weakBadgeText}>약점 보완 · {categoryLabel(problem.weakArea)}</Text>
+          </View>
+        )}
       </View>
 
       <Text style={styles.title}>{problem.title}</Text>
@@ -378,6 +500,7 @@ export default function ProblemSolveScreen() {
           count={countBlanks(problem)}
           values={fillAnswers}
           submitted={submitted}
+          allCorrect={submitted && isCorrect}
           correctAnswers={correctAnswersForHint}
           onChange={(i, v) =>
             setFillAnswers(prev => {
@@ -391,14 +514,14 @@ export default function ProblemSolveScreen() {
         <>
           <TouchableOpacity
             style={[styles.fmtBtn, submitted && styles.btnDisabled]}
-            onPress={() => setCodeAnswer(formatCode(codeAnswer, 42, problem.language))}
+            onPress={() => setCodeAnswer(formatCode(codeAnswer, problem.language))}
             disabled={submitted}>
             <Text style={styles.fmtBtnText}>⟲ 코드 정렬</Text>
           </TouchableOpacity>
           <CodeAnswer
             value={codeAnswer}
             submitted={submitted}
-            placeholder={problem.type === 'DEBUGGING' ? '코드를 수정하세요' : '코드를 작성하세요'}
+            placeholder={answerPlaceholder(problem)}
             onChange={setCodeAnswer}
           />
         </>
@@ -421,7 +544,7 @@ export default function ProblemSolveScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.hintBtn}
-            onPress={() => Alert.alert('AI 힌트', '곧 제공될 기능이에요.')}>
+            onPress={handleHint}>
             <MaterialIcons name="lightbulb-outline" size={18} color={colors.primary} />
             <Text style={styles.hintBtnText}>AI 힌트</Text>
           </TouchableOpacity>
@@ -461,6 +584,25 @@ export default function ProblemSolveScreen() {
       {submitted && (
         <View style={[styles.resultCard, isCorrect ? styles.correctCard : styles.wrongCard]}>
           <Text style={styles.resultTitle}>{isCorrect ? '🎉 정답!' : '😢 오답'}</Text>
+          {resultTests && (
+            <Text style={styles.testSummary}>
+              테스트 {resultTests.passed}/{resultTests.total} 통과 (숨겨진 테스트 포함)
+            </Text>
+          )}
+          {!isCorrect && resultFail && !!failTitle(resultFail) && (
+            <View style={styles.failSection}>
+              <Text style={styles.failTitle}>{failTitle(resultFail)}</Text>
+              {resultFail.expectedOutput != null && resultFail.actualOutput != null && (
+                <>
+                  <Text style={styles.failLabel}>내 출력</Text>
+                  <Text style={styles.failValue}>{resultFail.actualOutput || '(출력 없음)'}</Text>
+                  <Text style={styles.failLabel}>기대 출력</Text>
+                  <Text style={styles.failValue}>{resultFail.expectedOutput}</Text>
+                </>
+              )}
+              {!!resultFail.failMessage && <Text style={styles.failMessage}>{resultFail.failMessage}</Text>}
+            </View>
+          )}
           {!isCorrect && resultAnswer != null && (
             <>
               <Text style={styles.answerLabel}>모범 답안</Text>
@@ -477,13 +619,112 @@ export default function ProblemSolveScreen() {
         </View>
       )}
     </ScrollView>
+    </KeyboardAvoidingView>
+
+    {/* AI 힌트 모달 */}
+    <Modal
+      visible={hintVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setHintVisible(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalCard}>
+          <View style={styles.modalHeader}>
+            <MaterialIcons name="lightbulb" size={22} color={colors.warning} />
+            <Text style={styles.modalTitle}>AI 힌트</Text>
+            <TouchableOpacity
+              style={styles.modalClose}
+              onPress={() => setHintVisible(false)}
+              hitSlop={8}>
+              <MaterialIcons name="close" size={20} color={colors.subText} />
+            </TouchableOpacity>
+          </View>
+          {hintLoading ? (
+            <View style={styles.modalBody}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.modalLoadingText}>힌트를 불러오고 있어요...</Text>
+            </View>
+          ) : hintError ? (
+            <View style={styles.modalBody}>
+              <Text style={styles.modalErrorText}>힌트를 가져오지 못했어요.</Text>
+              <TouchableOpacity
+                style={styles.modalRetryBtn}
+                onPress={() => { setHint1(null); handleHint(); }}>
+                <Text style={styles.modalRetryText}>다시 시도</Text>
+              </TouchableOpacity>
+            </View>
+          ) : !hint1 ? (
+            <View style={styles.modalBody}>
+              <MaterialIcons name="lightbulb-outline" size={40} color={colors.subText} />
+              <Text style={styles.modalErrorText}>이 문제는 힌트가 준비되지 않았어요.</Text>
+            </View>
+          ) : (
+            <ScrollView style={styles.modalScroll} bounces={false}>
+              <View style={styles.hintStepHeader}>
+                <View style={[styles.hintStepBadge, {backgroundColor: colors.warningSoft}]}>
+                  <Text style={[styles.hintStepBadgeText, {color: colors.warning}]}>1단계</Text>
+                </View>
+                <Text style={styles.hintStepLabel}>방향 힌트</Text>
+              </View>
+              <Text style={styles.modalHintText}>{hint1}</Text>
+
+              {hintStep === 1 && hint2 ? (
+                <TouchableOpacity
+                  style={styles.moreHintBtn}
+                  onPress={() => setHintStep(2)}>
+                  <MaterialIcons name="expand-more" size={18} color={colors.primary} />
+                  <Text style={styles.moreHintText}>더 자세한 힌트 보기</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              {hintStep >= 2 && hint2 ? (
+                <View style={styles.hintNextSection}>
+                  <View style={styles.hintStepHeader}>
+                    <View style={[styles.hintStepBadge, {backgroundColor: colors.infoSoft}]}>
+                      <Text style={[styles.hintStepBadgeText, {color: colors.info}]}>2단계</Text>
+                    </View>
+                    <Text style={styles.hintStepLabel}>구체적 힌트</Text>
+                  </View>
+                  <Text style={styles.modalHintText}>{hint2}</Text>
+                </View>
+              ) : null}
+
+              {hintStep === 2 && hint3 ? (
+                <TouchableOpacity
+                  style={styles.moreHintBtn}
+                  onPress={() => setHintStep(3)}>
+                  <MaterialIcons name="expand-more" size={18} color={colors.primary} />
+                  <Text style={styles.moreHintText}>코드 구조 힌트 보기</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              {hintStep >= 3 && hint3 ? (
+                <View style={styles.hintNextSection}>
+                  <View style={styles.hintStepHeader}>
+                    <View style={[styles.hintStepBadge, {backgroundColor: colors.dangerSoft}]}>
+                      <Text style={[styles.hintStepBadgeText, {color: colors.danger}]}>3단계</Text>
+                    </View>
+                    <Text style={styles.hintStepLabel}>코드 구조 힌트</Text>
+                  </View>
+                  <Text style={styles.modalHintText}>{hint3}</Text>
+                </View>
+              ) : null}
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 
 // ─── 하위 컴포넌트 ────────────────────────────────────────────
 
-function FillBlank({count, values, submitted, correctAnswers, onChange}: {
-  count: number; values: string[]; submitted: boolean;
+// allCorrect: 서버가 최종 정답으로 판정했는지. 정답이면 모든 칸을 정답 색으로 칠한다.
+// 서버는 숨겨진 테스트가 있으면 코드를 실행해 채점하므로, 모범 답안과 글자가 다른 표현(n == x 등)도 정답일 수 있다.
+// 칸별 글자 비교와 "정답: …" 안내는 오답일 때만 보여 준다.
+function FillBlank({count, values, submitted, allCorrect, correctAnswers, onChange}: {
+  count: number; values: string[]; submitted: boolean; allCorrect: boolean;
   correctAnswers: string[]; onChange: (i: number, v: string) => void;
 }) {
   const {colors, fontScale} = useTheme();
@@ -492,8 +733,8 @@ function FillBlank({count, values, submitted, correctAnswers, onChange}: {
     <View style={styles.fillContainer}>
       {Array.from({length: count}).map((_, i) => {
         const hasAnswer = correctAnswers.length > i;
-        const correct = submitted && hasAnswer &&
-          normBlank(values[i]) === normBlank(correctAnswers[i]);
+        const correct = submitted && (allCorrect ||
+          (hasAnswer && normBlank(values[i]) === normBlank(correctAnswers[i])));
         const wrong = submitted && !correct;
         return (
           <View key={i} style={styles.fillRow}>
@@ -544,8 +785,10 @@ function CodeAnswer({value, submitted, placeholder, onChange}: {
 function makeStyles(c: Colors, fs: number) {
   return StyleSheet.create({
     container: {flex: 1, backgroundColor: c.bg},
+    scroll: {flex: 1},
     center: {justifyContent: 'center', alignItems: 'center'},
     content: {padding: 20, paddingBottom: 60},
+    contentTop: {paddingTop: 16},
     // 상단 네비 행
     navRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18},
     navTitle: {fontSize: 17 * fs, fontWeight: '800', color: c.text},
@@ -558,11 +801,17 @@ function makeStyles(c: Colors, fs: number) {
     progressFill: {height: '100%', backgroundColor: c.primary, borderRadius: 4},
     timerWrap: {flexDirection: 'row', alignItems: 'center', gap: 3},
     timerText: {fontSize: 12 * fs, color: c.subText, fontWeight: '700'},
+    badgeRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10},
     typeBadge: {
       alignSelf: 'flex-start', backgroundColor: c.primarySoft,
-      borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10,
+      borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4,
     },
     typeBadgeText: {fontSize: 12 * fs, color: c.primary, fontWeight: '600'},
+    weakBadge: {
+      alignSelf: 'flex-start', backgroundColor: c.infoSoft,
+      borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4,
+    },
+    weakBadgeText: {fontSize: 12 * fs, color: c.info, fontWeight: '600'},
     title: {fontSize: 18 * fs, fontWeight: '700', color: c.text, marginBottom: 8},
     question: {fontSize: 15 * fs, color: c.text, lineHeight: 23 * fs, marginBottom: 16},
     metaBox: {
@@ -619,6 +868,13 @@ function makeStyles(c: Colors, fs: number) {
     correctCard: {backgroundColor: c.successSoft},
     wrongCard: {backgroundColor: c.dangerSoft},
     resultTitle: {fontSize: 20 * fs, fontWeight: '700', color: c.text, marginBottom: 10},
+    testSummary: {fontSize: 13 * fs, fontWeight: '600', color: c.text, marginTop: -4, marginBottom: 12},
+    // 오답 이유 (색 있는 결과 카드 위라 본문은 text 색)
+    failSection: {marginBottom: 14},
+    failTitle: {fontSize: 14 * fs, fontWeight: '700', color: c.text, marginBottom: 6},
+    failLabel: {fontSize: 11 * fs, fontWeight: '700', color: c.text, marginTop: 4},
+    failValue: {fontSize: 13 * fs, color: c.text, fontFamily: 'monospace', marginTop: 2},
+    failMessage: {fontSize: 12 * fs, color: c.text, fontFamily: 'monospace', marginTop: 6, lineHeight: 18 * fs},
     runResultBox: {borderRadius: 14, padding: 16, marginTop: 12},
     runResultTitle: {fontSize: 15 * fs, fontWeight: '700', color: c.text, marginBottom: 8},
     answerLabel: {fontSize: 12 * fs, fontWeight: '700', color: c.text, marginBottom: 6},
@@ -629,5 +885,41 @@ function makeStyles(c: Colors, fs: number) {
     },
     nextBtnText: {color: c.onPrimary, fontWeight: '700', fontSize: 15 * fs},
     errorText: {fontSize: 15 * fs, color: c.subText, marginBottom: 16, textAlign: 'center'},
+    // AI 힌트 모달
+    modalOverlay: {
+      flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+      justifyContent: 'center', alignItems: 'center', padding: 20,
+    },
+    modalCard: {
+      backgroundColor: c.card, borderRadius: 20, width: '100%', maxHeight: '80%',
+      shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 20, shadowOffset: {width: 0, height: 8}, elevation: 8,
+    },
+    modalHeader: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      paddingHorizontal: 20, paddingTop: 18, paddingBottom: 12,
+      borderBottomWidth: 1, borderBottomColor: c.border,
+    },
+    modalTitle: {flex: 1, fontSize: 17 * fs, fontWeight: '800', color: c.text},
+    modalClose: {padding: 4},
+    modalBody: {alignItems: 'center', justifyContent: 'center', paddingVertical: 40, gap: 12},
+    modalLoadingText: {fontSize: 14 * fs, color: c.subText},
+    modalErrorText: {fontSize: 14 * fs, color: c.danger, textAlign: 'center'},
+    modalRetryBtn: {
+      backgroundColor: c.primarySoft, borderRadius: 10,
+      paddingHorizontal: 20, paddingVertical: 10,
+    },
+    modalRetryText: {color: c.primary, fontSize: 14 * fs, fontWeight: '700'},
+    modalScroll: {paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24},
+    modalHintText: {fontSize: 14 * fs, color: c.text, lineHeight: 22 * fs, marginBottom: 4},
+    hintStepHeader: {flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8},
+    hintStepBadge: {borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2},
+    hintStepBadgeText: {fontSize: 11 * fs, fontWeight: '800'},
+    hintStepLabel: {fontSize: 12 * fs, fontWeight: '700', color: c.subText},
+    moreHintBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+      backgroundColor: c.primarySoft, borderRadius: 10, paddingVertical: 10, marginTop: 10,
+    },
+    moreHintText: {color: c.primary, fontSize: 13 * fs, fontWeight: '700'},
+    hintNextSection: {marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.border},
   });
 }

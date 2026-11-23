@@ -2,6 +2,7 @@ package com.besenior.harucoding.service;
 
 import com.besenior.harucoding.DTO.RecommendationFilterDto;
 import com.besenior.harucoding.DTO.UserProfileDto;
+import com.besenior.harucoding.global.util.DifficultyRules;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -26,8 +27,9 @@ public class RecommendationService {
 
     // ── 온보딩 추천 (신규 유저) ────────────────────────────────────
     public RecommendationFilterDto recommendOnboarding(UserProfileDto profile) {
-        int score = calcOnboardingScore(profile);
-        String difficulty = scoreToDifficulty(score);
+        // 표시 이름은 문제 난이도와 같은 3단계(입문·초급·중급). 규칙은 DifficultyRules 한 곳에 있다.
+        String difficulty = DifficultyRules.label(
+                DifficultyRules.fromOnboarding(profile.getCodingLevel(), profile.isCotePrepared()));
         OnboardingMessage message = onboardingMessage(profile.getCodingLevel(), profile.isCotePrepared());
 
         return RecommendationFilterDto.builder()
@@ -49,10 +51,7 @@ public class RecommendationService {
      * 원본 답변(coding_level, cote_prepared)이 있으면 언제든 다시 구할 수 있어 저장하지 않는다.
      */
     public int onboardingBaseLevel(String codingLevel, boolean cotePrepared) {
-        int score = calcScore(codingLevel, cotePrepared);
-        if (score < 25) return 0;   // 입문
-        if (score < 50) return 1;   // 초급
-        return 2;                   // 중급·고급
+        return DifficultyRules.fromOnboarding(codingLevel, cotePrepared);
     }
 
     // ── 6가지 조합별 고정 문구 ─────────────────────────────────────
@@ -81,27 +80,5 @@ public class RecommendationService {
                             "코딩이 처음이시군요! 기초 문법부터 차근차근 시작하면 충분합니다.",
                             "변수, 조건문, 반복문 익히기");
         };
-    }
-
-    // ── 점수 계산 ──────────────────────────────────────────────────
-    private int calcOnboardingScore(UserProfileDto profile) {
-        return calcScore(profile.getCodingLevel(), profile.isCotePrepared());
-    }
-
-    private int calcScore(String codingLevel, boolean cotePrepared) {
-        int score = switch (codingLevel != null ? codingLevel : "NONE") {
-            case "LOTS" -> 60;
-            case "SOME" -> 30;
-            default     -> 0;
-        };
-        if (cotePrepared) score += 40;
-        return score;
-    }
-
-    private String scoreToDifficulty(int score) {
-        if (score < 25)  return "입문";
-        if (score < 50)  return "초급";
-        if (score < 75)  return "중급";
-        return "고급";
     }
 }

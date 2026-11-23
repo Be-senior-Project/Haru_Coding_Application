@@ -234,7 +234,8 @@ function wrapLine(line: string, maxChars: number, lang: 'python' | 'javascript')
   return wrapCodePart(line, maxChars);
 }
 
-// 괄호 균형(문자열/주석 무시). >0이면 식이 아직 안 닫힘.
+// 소괄호·대괄호 균형(문자열/주석 무시). >0이면 식이 아직 안 닫힘.
+// 중괄호는 세지 않는다. Java·C++에서 중괄호를 세면 함수 전체가 한 줄로 합쳐진다.
 function bracketDepth(s: string): number {
   let d = 0;
   let inStr = false;
@@ -247,14 +248,16 @@ function bracketDepth(s: string): number {
     }
     if (ch === '"' || ch === "'") {inStr = true; q = ch; continue;}
     if (ch === '#') {break;}
-    if (ch === '(' || ch === '[' || ch === '{') {d++;}
-    else if (ch === ')' || ch === ']' || ch === '}') {d--;}
+    if (ch === '(' || ch === '[') {d++;}
+    else if (ch === ')' || ch === ']') {d--;}
   }
   return d;
 }
 
-// 식 한복판에서 끊긴 물리적 줄을 논리적 줄로 합친다(저장된 코드에 박힌 줄바꿈 정리).
-function reflow(code: string): string[] {
+// 화면 표시용: Python 코드에서 괄호 안에서 끊긴 물리적 줄을 논리적 줄로 합친다(저장된 코드에 박힌 줄바꿈 정리).
+// Java·C++는 줄을 합치지 않는다.
+function reflow(code: string, lang: 'python' | 'javascript'): string[] {
+  if (lang !== 'python') {return code.split('\n');}
   const out: string[] = [];
   let buf = '';
   for (const line of code.split('\n')) {
@@ -273,40 +276,143 @@ function detectLanguage(code: string): 'python' | 'javascript' {
   return 'javascript';
 }
 
-// Python 블록 들여쓰기 재정렬: ':'로 끝나면 다음 줄부터 +1단(4칸),
-// else/elif/except/finally는 한 단 내려서 정렬, return/pass/break/continue/raise 뒤엔 한 단 빠짐.
-function reindentPython(code: string): string {
-  const dedentStart = /^(else|elif|except|finally|case|default)\b/;
-  const dedentAfter = /^(return|pass|break|continue|raise)\b/;
+// 줄 앞 탭을 공백 4칸으로 바꾼다.
+function expandLeadingTabs(line: string): string {
+  return line.replace(/^[ \t]+/, m => m.replace(/\t/g, '    '));
+}
+
+// Python 한 줄을 훑어 괄호 깊이·여러 줄 문자열 상태를 갱신한다. 반환값: 줄 끝 '\'로 다음 줄에 이어지는지.
+function scanPythonLine(line: string, st: {depth: number; triple: string | null}): boolean {
+  let i = 0;
+  while (i < line.length) {
+    if (st.triple) {
+      const end = line.indexOf(st.triple, i);
+      if (end === -1) {return false;}
+      i = end + 3;
+      st.triple = null;
+      continue;
+    }
+    const ch = line[i];
+    if (ch === '#') {break;}
+    if (ch === '"' || ch === "'") {
+      if (line.slice(i, i + 3) === ch.repeat(3)) {
+        st.triple = ch.repeat(3);
+        i += 3;
+        continue;
+      }
+      let j = i + 1;
+      while (j < line.length && line[j] !== ch) {
+        if (line[j] === '\\') {j++;}
+        j++;
+      }
+      i = j + 1;
+      continue;
+    }
+    if (ch === '(' || ch === '[' || ch === '{') {st.depth++;}
+    else if (ch === ')' || ch === ']' || ch === '}') {st.depth = Math.max(0, st.depth - 1);}
+    i++;
+  }
+  return !st.triple && /\\$/.test(line);
+}
+
+// Python 정렬: 사용자가 쓴 들여쓰기 단계(블록 구조)는 그대로 두고, 단계마다 공백 4칸으로 맞춘다.
+// Python은 들여쓰기가 곧 블록이라 단계를 새로 계산하면 코드 의미가 바뀐다(return이 if 안으로 들어가는 등).
+// 괄호 안에서 이어지는 줄은 시작 줄이 움직인 만큼만 같이 옮기고, 여러 줄 문자열 안의 줄은 건드리지 않는다.
+// 들여쓰기가 어느 바깥 단계와도 맞지 않는 줄(Python에서도 오류)은 그대로 둔다.
+function normalizePythonIndent(code: string): string {
   const out: string[] = [];
-  let indent = 0;
-  for (const raw of code.split('\n')) {
-    const line = raw.trim();
-    if (line === '') {out.push(''); continue;}
-    let ind = indent;
-    if (dedentStart.test(line)) {ind = Math.max(0, indent - 1);}
-    out.push('    '.repeat(ind) + line);
-    const noComment = line.replace(/#.*$/, '').trimEnd();
-    if (noComment.endsWith(':')) {
-      indent = (dedentStart.test(line) ? ind : indent) + 1;
-    } else if (dedentAfter.test(line)) {
-      indent = Math.max(0, indent - 1);
+  const levels: number[] = [0];
+  const st = {depth: 0, triple: null as string | null};
+  let continued = false;
+  let shift = 0;
+  for (const raw of code.replace(/\r/g, '').split('\n')) {
+    if (st.triple) {
+      out.push(raw);
+      continued = scanPythonLine(raw, st);
+      continue;
+    }
+    const line = expandLeadingTabs(raw).replace(/\s+$/, '');
+    const body = line.trimStart();
+    const width = line.length - body.length;
+    if (body === '') {
+      out.push('');
+      continue;
+    }
+    if (st.depth > 0 || continued) {
+      out.push(' '.repeat(Math.max(0, width + shift)) + body);
+    } else {
+      if (width > levels[levels.length - 1]) {levels.push(width);}
+      while (levels.length > 1 && width < levels[levels.length - 1]) {levels.pop();}
+      if (width === levels[levels.length - 1]) {
+        const indent = 4 * (levels.length - 1);
+        shift = indent - width;
+        out.push(' '.repeat(indent) + body);
+      } else {
+        shift = 0;
+        out.push(line);
+      }
+    }
+    continued = scanPythonLine(body, st);
+  }
+  return out.join('\n');
+}
+
+// Java·C++ 정렬: 중괄호 깊이로 들여쓰기(4칸)를 다시 정한다. 공백이 의미를 바꾸지 않는 언어라 안전하다.
+// 줄이 '}'로 시작하면 한 단계 내어쓰고, 소괄호·대괄호 안에서 이어지는 줄은 한 단계 더 들여쓴다.
+// C++ 전처리 줄(#include 등)은 0칸, 여러 줄 주석 안의 '*' 줄은 한 칸 더 들여쓴다.
+function reindentBraces(code: string): string {
+  const out: string[] = [];
+  let depth = 0;
+  let paren = 0;
+  let inComment = false;
+  for (const raw of code.replace(/\r/g, '').split('\n')) {
+    const body = raw.trim();
+    if (body === '') {
+      out.push('');
+      continue;
+    }
+    if (inComment) {
+      out.push('    '.repeat(depth) + (body.startsWith('*') ? ' ' : '') + body);
+    } else if (body.startsWith('#')) {
+      out.push(body);
+      continue;
+    } else {
+      const closing = (body.match(/^[}\s]*/)?.[0].match(/}/g) ?? []).length;
+      const level = Math.max(0, depth - closing) + (paren > 0 && !/^[)\]]/.test(body) ? 1 : 0);
+      out.push('    '.repeat(level) + body);
+    }
+    // 문자열·문자·주석을 빼고 괄호를 센다
+    for (let i = 0; i < body.length; i++) {
+      const ch = body[i];
+      if (inComment) {
+        if (ch === '*' && body[i + 1] === '/') {inComment = false; i++;}
+        continue;
+      }
+      if (ch === '/' && body[i + 1] === '/') {break;}
+      if (ch === '/' && body[i + 1] === '*') {inComment = true; i++; continue;}
+      if (ch === '"' || ch === "'") {
+        let j = i + 1;
+        while (j < body.length && body[j] !== ch) {
+          if (body[j] === '\\') {j++;}
+          j++;
+        }
+        i = j;
+        continue;
+      }
+      if (ch === '{') {depth++;}
+      else if (ch === '}') {depth = Math.max(0, depth - 1);}
+      else if (ch === '(' || ch === '[') {paren++;}
+      else if (ch === ')' || ch === ']') {paren = Math.max(0, paren - 1);}
     }
   }
   return out.join('\n');
 }
 
-// 편집란(TextInput) 등에서 코드를 '정렬': Python이면 블록 들여쓰기 재정렬 후
-// 식 줄 합치고(reflow) 긴 줄을 정렬 줄바꿈한다.
-// language를 명시하면 자동감지(detectLanguage) 대신 그걸 쓴다 — 구현 문제의 본문 조각처럼
-// 'def'가 없어 오판되는 경우를 막기 위함. ('Python'/'Java'/'C++' 모두 허용)
-export function formatCode(code: string, maxChars = 42, language?: string): string {
+// 입력란의 "코드 정렬" 버튼: 들여쓰기만 정리하고 줄을 합치거나 끊지 않는다(입력한 코드의 의미를 바꾸지 않기 위함).
+// language는 문제 언어('Python'/'Java'/'C++'). 없으면 코드에서 추정한다.
+export function formatCode(code: string, language?: string): string {
   const isPython = language ? /python/i.test(language) : detectLanguage(code) === 'python';
-  const lang: 'python' | 'javascript' = isPython ? 'python' : 'javascript';
-  const src = isPython ? reindentPython(code) : code;
-  return reflow(src)
-    .flatMap(line => wrapLine(line, maxChars, lang))
-    .join('\n');
+  return isPython ? normalizePythonIndent(code) : reindentBraces(code);
 }
 
 export default function CodeBlock({
@@ -326,7 +432,7 @@ export default function CodeBlock({
   // padding 32 (양쪽 16씩) 제외
   const maxChars = Math.floor((width - 32) / (fontSize * 0.605));
 
-  const visualLines = reflow(code).flatMap(line => wrapLine(line, maxChars, lang));
+  const visualLines = reflow(code, lang).flatMap(line => wrapLine(line, maxChars, lang));
 
   return (
     <View style={{backgroundColor: '#1E1E2E', borderRadius: 10, padding: 16, marginBottom: 20}}>

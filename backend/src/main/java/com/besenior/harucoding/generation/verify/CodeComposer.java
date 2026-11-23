@@ -7,7 +7,9 @@ import java.util.regex.Pattern;
 
 /**
  * Type별로 실행용 "완성 코드"를 조립한다.
- *  - Implementation:     Code Skeleton의 {{CORE}} 라인을 Answer(절대 들여쓰기 포함)로 치환
+ *  - Implementation:     Code Skeleton의 {{CORE}} 라인을 Answer로 치환. Answer의 공통 들여쓰기를 걷어낸 뒤
+ *                        {{CORE}} 위치의 들여쓰기를 붙인다. 사용자가 0칸부터 쓴 답안과 AI가 절대 들여쓰기로 쓴
+ *                        정답을 같은 방식으로 처리한다. (들여쓰기는 여기서만 붙인다. 두 번 붙으면 Python 문법 오류)
  *  - Debugging:          Answer 그대로 (이미 수정된 완성 코드)
  *  - Fill-in-the-blank:  Code Skeleton의 {{BLANK_N}}을 Answer 리스트로 순서대로 치환
  */
@@ -38,7 +40,7 @@ public final class CodeComposer {
             for (int i = 0; i < lines.length; i++) {
                 String line = lines[i];
                 if (line.strip().equals(CORE)) {
-                    sb.append(ans);
+                    sb.append(indentBlock(ans, coreIndent(lines, i)));
                 } else if (line.contains(CORE)) {
                     sb.append(line.replace(CORE, ans));
                 } else {
@@ -84,6 +86,56 @@ public final class CodeComposer {
         }
 
         return new Composed(null, "알 수 없는 Type: " + type);
+    }
+
+    /**
+     * {{CORE}} 자리에 붙일 들여쓰기. 표식 줄의 들여쓰기를 그대로 쓰되, 표식이 0칸에 있으면 바로 앞 코드 줄을 기준으로 정한다
+     * (앞 줄이 ':'로 끝나면 한 단계 더). 함수 본문 중간인데 표식만 0칸에 둔 스켈레톤이 있어서다.
+     */
+    static String coreIndent(String[] lines, int coreIdx) {
+        String own = lines[coreIdx].substring(0, lines[coreIdx].indexOf(CORE));
+        if (!own.isEmpty()) return own;
+        for (int k = coreIdx - 1; k >= 0; k--) {
+            String prev = expandLeadingTabs(lines[k]);
+            if (prev.isBlank()) continue;
+            String lead = prev.substring(0, leadingSpaces(prev));
+            String code = prev.strip().replaceFirst("\\s+#.*$", "");
+            return code.endsWith(":") ? lead + "    " : lead;
+        }
+        return own;
+    }
+
+    /** answer의 공통 들여쓰기를 걷어낸 뒤 모든 줄 앞에 indent를 붙인다. 빈 줄은 비워 두고, 줄 앞 탭은 공백 4칸으로 본다. */
+    static String indentBlock(String answer, String indent) {
+        String[] ls = answer.replace("\r", "").split("\n", -1);
+        int min = Integer.MAX_VALUE;
+        for (int j = 0; j < ls.length; j++) {
+            ls[j] = expandLeadingTabs(ls[j]);
+            if (!ls[j].isBlank()) min = Math.min(min, leadingSpaces(ls[j]));
+        }
+        if (min == Integer.MAX_VALUE) min = 0;
+        StringBuilder sb = new StringBuilder();
+        for (int j = 0; j < ls.length; j++) {
+            if (j > 0) sb.append('\n');
+            if (!ls[j].isBlank()) sb.append(indent).append(ls[j].substring(min));
+        }
+        return sb.toString();
+    }
+
+    private static String expandLeadingTabs(String line) {
+        int i = 0;
+        StringBuilder lead = new StringBuilder();
+        while (i < line.length() && (line.charAt(i) == ' ' || line.charAt(i) == '\t')) {
+            lead.append(line.charAt(i) == '\t' ? "    " : " ");
+            i++;
+        }
+        return lead + line.substring(i);
+    }
+
+    private static int leadingSpaces(String line) {
+        int n = 0;
+        while (n < line.length() && line.charAt(n) == ' ') n++;
+        return n;
     }
 
     private static int countOccurrences(String s, String sub) {

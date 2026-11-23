@@ -48,7 +48,6 @@ public class Main {
     }
 
     public static void main(String[] args) {
-        __IO__
-        System.out.println(__json((Object) new Main().solution(__ARGS__)));
+__CASES__
     }
 }

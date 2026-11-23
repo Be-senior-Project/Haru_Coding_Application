@@ -13,7 +13,7 @@ export interface UserProfile {
   accuracyRate: number;
   preferredLanguage?: string;
   dailyGoalCount: number;
-  difficultyLevel?: string | null; // null/미설정 = 자동 추천, 아니면 L1~L5
+  difficultyLevel?: string | null; // null/미설정 = 자동 추천. 앱은 L1·L3·L5(입문·초급·중급)로 저장(예전 값 L2·L4도 올 수 있음)
   // 티어는 백엔드 UserProfileResponse에 없다. level에서 파생 (theme의 tierFromLevel).
 }
 
