@@ -33,6 +33,10 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # 프로젝트가 쓰는 NDK·CMake를 Gradle이 받으려면 SDK 라이선스 동의가 필요하다.
+      - name: Accept Android SDK licenses
+        run: (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+
       - run: npm ci
 
       # .env는 git에 없으므로 Secret으로 만든다.
