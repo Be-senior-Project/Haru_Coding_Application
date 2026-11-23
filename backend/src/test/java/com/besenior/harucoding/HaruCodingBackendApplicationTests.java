@@ -1,4 +1,4 @@
-package com.be_senior.Haru_Coding_backend;
+package com.besenior.harucoding;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
