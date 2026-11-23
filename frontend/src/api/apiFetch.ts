@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const BASE_URL = 'http://10.0.2.2:8080';
+import {API_BASE_URL} from './config';
 
 // ── 토큰 자동 갱신 ───────────────────────────────────────────────
 // 401/403(인증 만료 추정) 시 refreshToken으로 액세스 토큰 재발급 후 1회 재시도.
@@ -14,7 +13,7 @@ async function doRefresh(): Promise<string | null> {
   }
   try {
     // 백엔드 /api/auth/refresh 는 refreshToken 을 Authorization 헤더로 받음
-    const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
+    const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -67,7 +66,7 @@ async function request<T>(
     }
   }
 
-  const res = await fetch(`${BASE_URL}${path}`, {...options, headers});
+  const res = await fetch(`${API_BASE_URL}${path}`, {...options, headers});
 
   // 인증 만료 추정(401/403) → 토큰 한 번 갱신 후 재시도
   if ((res.status === 401 || res.status === 403) && requireAuth && !retried) {
