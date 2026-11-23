@@ -1,3 +1,6 @@
 .idea/
 *.iml
 .DS_Store
+
+# 비밀값 (하위 폴더 포함)
+.env

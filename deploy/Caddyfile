@@ -1,0 +1,6 @@
+# Cloudflare(Full Strict) → Caddy. 인증서는 Cloudflare Origin Cert(~/haru/caddy/certs).
+# 인증서를 직접 지정하므로 Caddy가 ACME(Let's Encrypt) 발급을 시도하지 않는다.
+haru.careerpilot.kr {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+	reverse_proxy app:8080
+}
