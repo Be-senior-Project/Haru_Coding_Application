@@ -1,4 +1,8 @@
-# 운영 서버(EC2) 전용: ~/haru/docker-compose.yml 로 복사해서 사용.
+# 운영 서버(EC2) 전용. deploy/ 폴더 구조 그대로 ~/haru/ 에 둔다:
+#   deploy/docker-compose.yml → ~/haru/docker-compose.yml
+#   deploy/caddy/Caddyfile    → ~/haru/caddy/Caddyfile   (인증서는 ~/haru/caddy/certs/origin.{pem,key})
+#   backend/init.sql          → ~/haru/db/init.sql
+# 백업 cron이 이 파일로 `docker compose exec db pg_dump`를 실행하므로 필수 변수가 비면 백업도 실패한다.
 #   Cloudflare(proxied, Full Strict) → caddy:443 (Origin Cert) → app:8080 → db:5432
 # 값은 같은 폴더의 .env(chmod 600)에서 읽는다. 변수 목록은 deploy/.env.example.
 # 필수 변수가 비어 있으면 compose 명령이 바로 실패한다(:? 문법).
@@ -19,8 +23,8 @@ services:
     ports:
       - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./caddy/certs:/etc/caddy/certs:ro
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/certs:/certs:ro
       - caddy_data:/data
       - caddy_config:/config
     logging: *default-logging
