@@ -1,0 +1,73 @@
+name: Build Android APK
+
+# 앱(frontend)을 설치용 APK로 빌드한다.
+# - 수동 실행(Actions → Build Android APK → Run workflow): Artifacts에 APK가 올라간다(90일 보관).
+# - 태그 push(app-v1.0.0 형식): GitHub Release를 만들고 APK를 첨부한다(삭제 전까지 계속 보관).
+on:
+  workflow_dispatch:
+  push:
+    tags: ['app-v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: npm ci
+
+      # .env는 git에 없으므로 Secret으로 만든다.
+      # API_BASE_URL은 비워 둔다 → 릴리스 빌드는 운영 서버(https://haru.careerpilot.kr)로 붙는다.
+      - name: Create .env
+        env:
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+        run: |
+          if [ -z "$GOOGLE_WEB_CLIENT_ID" ]; then
+            echo "::error::GOOGLE_WEB_CLIENT_ID secret이 없습니다. Settings → Secrets and variables → Actions에 추가하세요."
+            exit 1
+          fi
+          printf 'GOOGLE_WEB_CLIENT_ID=%s\nAPI_BASE_URL=\n' "$GOOGLE_WEB_CLIENT_ID" > .env
+
+      # 저장소의 debug.keystore로 서명한다(개발 빌드와 같은 키 → 구글 로그인 SHA-1 그대로 동작).
+      # 실기기용 아키텍처만 넣어 용량을 줄인다.
+      - name: Build release APK
+        working-directory: frontend/android
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a --no-daemon
+
+      - name: Rename APK
+        id: apk
+        run: |
+          NAME="haru-coding-${GITHUB_REF_NAME//\//-}.apk"
+          mv android/app/build/outputs/apk/release/app-release.apk "$NAME"
+          echo "path=frontend/$NAME" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: haru-coding-apk
+          path: ${{ steps.apk.outputs.path }}
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/app-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.apk.outputs.path }}
+          generate_release_notes: true
