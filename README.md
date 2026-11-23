@@ -20,18 +20,39 @@ AI가 사용자의 약점에 맞춰 문제를 만들고, 서버가 코드를 실
 
 ```mermaid
 flowchart LR
-    App["안드로이드 앱<br/>(React Native)"] -->|HTTPS| CF["Cloudflare<br/>DNS·프록시"]
-    CF --> Caddy["Caddy<br/>TLS 인증서"]
-    Caddy --> API["Spring Boot API<br/>(Docker)"]
-    API --> DB[("PostgreSQL 16<br/>+ pgvector")]
-    API --> Runner["코드 실행기<br/>Python·Java·C++<br/>(격리 실행)"]
-    API -->|문제 생성·임베딩| OpenAI["OpenAI API"]
-    App -->|로그인| Google["Google 로그인"]
-    API -->|토큰 확인| Google
+    App["안드로이드 앱<br/>(React Native)"]
+    CF["Cloudflare<br/>DNS·프록시"]
+    OpenAI["OpenAI API"]
+    Google["Google 로그인"]
+
+    subgraph EC2["AWS EC2 · Docker Compose (외부 공개: 443만)"]
+        Caddy["Caddy<br/>리버스 프록시<br/>(Origin 인증서)"]
+        subgraph AppC["Spring Boot API 컨테이너"]
+            API["Spring Boot API"]
+            Runner["코드 실행기<br/>Python·Java·C++<br/>(권한 없는 계정·네트워크 차단)"]
+        end
+        DB[("PostgreSQL 16<br/>+ pgvector")]
+    end
+
+    subgraph CICD["CI/CD"]
+        GH["GitHub<br/>PR → CI 검사"] -->|main merge| Actions["GitHub Actions<br/>이미지 빌드"]
+        Actions --> GHCR["GHCR<br/>이미지 저장소"]
+    end
+
+    App -->|HTTPS| CF -->|"HTTPS (Full Strict)"| Caddy -->|"HTTP (내부망)"| API
+    API --> DB
+    API --> Runner
+    API -->|문제·힌트 생성, 임베딩| OpenAI
+    API -->|"ID 토큰 검증 (aud)"| Google
+    App -->|"로그인 (ID 토큰 발급)"| Google
+    Actions -.->|"SSH 배포 (pull → up)"| EC2
 ```
 
-- 서버는 Docker Compose로 API와 DB를 함께 띄웁니다. 외부 요청은 Caddy를 거쳐서만 들어옵니다.
-- 사용자 코드는 API 컨테이너 안에서 별도 계정, 네트워크 차단, 자원 제한 상태로 실행합니다.
+- 서버는 AWS EC2 한 대에서 Docker Compose로 Caddy, API, DB 컨테이너를 띄웁니다. 외부에는 443 포트만 열려 있고, 요청은 Cloudflare와 Caddy를 거쳐서만 API에 들어옵니다.
+- Cloudflare와 Caddy 사이도 HTTPS입니다(Full Strict, Cloudflare Origin 인증서). Caddy와 API는 컨테이너 내부망으로 연결되며, API와 DB는 외부에 포트를 열지 않습니다.
+- 코드 실행기는 별도 서버가 아니라 API 컨테이너 안에서 돌고, 사용자 코드는 권한 없는 계정(`coderunner`)으로 네트워크 차단·자원 제한을 걸고 실행합니다.
+- 힌트는 문제를 생성할 때 함께 만들어 저장합니다. 힌트를 볼 때 OpenAI를 다시 호출하지 않습니다.
+- 구글 로그인은 앱이 받은 ID 토큰을 서버가 Google에 확인하고, 우리 앱용 토큰(`aud`)인지까지 검증합니다.
 - 문제 추천은 문제 임베딩(pgvector) 유사도와 풀이 기록으로 고릅니다.
 
 ## 기술 스택
@@ -42,7 +63,7 @@ flowchart LR
 | 서버 | Java 17, Spring Boot 3.5, Spring Security(JWT), Spring Data JPA |
 | DB | PostgreSQL 16, pgvector |
 | AI | OpenAI API(문제 생성, 임베딩 text-embedding-3-small) |
-| 배포 | Docker Compose, Caddy, Cloudflare |
+| 배포 | AWS EC2, Docker Compose, Caddy, Cloudflare, GitHub Actions, GHCR |
 
 ## 폴더 구조
 
@@ -81,13 +102,16 @@ npm run android    # 다른 터미널에서 빌드·설치
 | 항목 | 내용 |
 |---|---|
 | 서버 주소 | `https://haru.careerpilot.kr` |
-| 구성 | Cloudflare(DNS·프록시) → Caddy(TLS) → Docker Compose(Spring Boot + PostgreSQL) |
-| 환경변수 | 서버의 `backend/.env`에 넣습니다. 항목은 `backend/.env.example`을 참고합니다. |
-| 다시 배포 | 서버에서 최신 코드를 받은 뒤 `docker compose -p harucoding up -d --build` |
-| 앱 빌드 | `frontend/.env`에 `API_BASE_URL=https://haru.careerpilot.kr`을 넣고 빌드합니다. |
+| 구성 | Cloudflare(DNS·프록시) → Caddy(리버스 프록시) → Spring Boot API → PostgreSQL. AWS EC2 한 대에서 Docker Compose로 실행 |
+| 서버 설정 파일 | `deploy/docker-compose.yml`, `deploy/caddy/Caddyfile` (서버 `~/haru/`에 그대로 둡니다) |
+| 환경변수 | 서버 `~/haru/.env`에 넣습니다. 항목은 `deploy/.env.example`을 참고합니다. |
+| CI | main으로 가는 PR마다 GitHub Actions가 검사합니다 (백엔드 테스트·Docker 빌드, 프론트 lint·타입 검사·테스트) |
+| 배포 | main에 `backend/` 변경이 merge되면 GitHub Actions가 이미지를 빌드해 GHCR에 올리고, SSH로 서버에서 새 이미지를 받아 API를 다시 띄웁니다. 수동 실행: Actions → Deploy Backend → Run workflow |
+| 앱 빌드 | 릴리스 빌드는 `frontend/.env`의 `API_BASE_URL`이 비어 있으면 운영 서버로 붙습니다. 개발 빌드로 운영 서버를 쓰려면 `API_BASE_URL=https://haru.careerpilot.kr` |
 
 - Cloudflare는 100초 안에 응답이 없으면 오류(524)를 돌려줍니다. 서버는 외부 호출 시간 제한과 문제 생성 재시도 제한으로 이 시간 안에 응답합니다.
-- DB와 API 포트는 서버 안(127.0.0.1)에서만 열립니다.
+- 운영 서버는 외부에 443만 엽니다. API는 호스트 포트를 열지 않고(Caddy가 내부망으로 연결), DB는 서버 안(127.0.0.1)에서만 접속됩니다.
+- `deploy/` 파일(compose, Caddyfile)은 배포 워크플로가 서버로 옮기지 않으므로, 바꾸면 서버에 직접 반영합니다.
 
 ## 문서
 
