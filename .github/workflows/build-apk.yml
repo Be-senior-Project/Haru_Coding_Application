@@ -48,10 +48,10 @@ jobs:
           printf 'GOOGLE_WEB_CLIENT_ID=%s\nAPI_BASE_URL=\n' "$GOOGLE_WEB_CLIENT_ID" > .env
 
       # 저장소의 debug.keystore로 서명한다(개발 빌드와 같은 키 → 구글 로그인 SHA-1 그대로 동작).
-      # 실기기용 아키텍처만 넣어 용량을 줄인다.
+      # 실기기(arm)와 PC 에뮬레이터(x86_64)용만 넣는다.
       - name: Build release APK
         working-directory: frontend/android
-        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a --no-daemon
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64 --no-daemon
 
       - name: Rename APK
         id: apk
