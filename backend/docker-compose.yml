@@ -1,24 +1,23 @@
-version: '3.8'
-
+# 로컬 개발용. 값은 같은 폴더의 .env에서 읽고, 없으면 아래 기본값을 쓴다 (.env.example 참고).
+# 서버(운영)용은 deploy/docker-compose.yml.
 services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: harucoding-db
     environment:
-      POSTGRES_DB: HaruCoding
-      POSTGRES_USER: postgres
-      # 비밀번호는 공개 저장소에 두지 않고 backend/.env의 DB_PASSWORD에서 읽는다.
-      # DB를 처음 만들 때 이 값으로 정해지므로, 이미 만든 DB(로컬 포함)는 그때 쓴 비밀번호를 그대로 넣어야 접속된다.
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?backend/.env에 DB_PASSWORD를 설정하세요}
+      POSTGRES_DB: ${DB_NAME:-HaruCoding}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      # DB를 처음 만들 때 이 값으로 정해지므로, 이미 만든 DB는 그때 쓴 비밀번호를 그대로 넣어야 접속된다.
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-root1212}
     # 호스트 포트 5433로 매핑(다른 postgres와 충돌 방지). 컨테이너 내부는 5432 유지.
-    # 127.0.0.1에만 열어 서버 밖에서는 접속할 수 없게 한다(도커가 연 포트는 서버 방화벽 ufw 설정을 거치지 않음).
+    # 127.0.0.1에만 열어 같은 PC에서만 접속할 수 있게 한다(도커가 연 포트는 방화벽 설정을 거치지 않음).
     ports:
-      - "127.0.0.1:5433:5432"
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
     volumes:
       - harucoding_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d HaruCoding"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -31,22 +30,23 @@ services:
       postgres:
         condition: service_healthy
     # datasource는 표준 Spring 환경변수로 오버라이드(컨테이너 내부에선 postgres 서비스로 접속).
-    # 비밀값(OPENAI_API_KEY, ENCRYPTION_SECRET_KEY, JWT_SECRET 등)은 compose가 backend/.env에서 읽어
-    # 컨테이너 환경변수로 넣는다(.env 파일을 컨테이너에 마운트하지 않음).
+    # 비밀값은 compose가 backend/.env에서 읽어 컨테이너 환경변수로 넣는다(.env 파일을 컨테이너에 마운트하지 않음).
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/HaruCoding
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?backend/.env에 DB_PASSWORD를 설정하세요}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-HaruCoding}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-root1212}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       ENCRYPTION_SECRET_KEY: ${ENCRYPTION_SECRET_KEY}
-      JWT_SECRET: ${JWT_SECRET}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      # 로컬 전용 기본값. 운영 서버는 deploy/.env의 JWT_SECRET(새로 생성한 값)을 쓴다.
+      JWT_SECRET: ${JWT_SECRET:-local-dev-only-jwt-secret-not-for-production-0123456789}
+      SEED_AUTOLOAD: ${SEED_AUTOLOAD:-true}
       ADMIN_API_KEY: ${ADMIN_API_KEY:-}
       GENERATION_DAILY_LIMIT: ${GENERATION_DAILY_LIMIT:-30}
-    # 기본은 127.0.0.1에만 열어 외부 요청은 앞단 프록시(Caddy 등)를 거쳐서만 들어오게 한다.
-    # 에뮬레이터(10.0.2.2)는 그대로 접속된다. 실기기에서 같은 PC의 서버에 붙을 때만 .env에 API_BIND=0.0.0.0
+    # 기본은 127.0.0.1에만 연다. 에뮬레이터(10.0.2.2)는 그대로 접속된다.
+    # 실기기에서 같은 PC의 서버에 붙을 때만 .env에 API_BIND=0.0.0.0
     ports:
-      - "${API_BIND:-127.0.0.1}:8080:8080"
+      - "${API_BIND:-127.0.0.1}:${API_PORT:-8080}:8080"
     restart: unless-stopped
 
 volumes:

@@ -2,5 +2,8 @@
 *.iml
 .DS_Store
 
+# 비밀값 (하위 폴더 포함)
+.env
+
 # 실제 API 키를 모아둔 로컬 파일. 공개 저장소라 커밋되면 키가 바로 노출된다
 environment_key.txt

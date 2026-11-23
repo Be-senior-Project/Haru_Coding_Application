@@ -1,0 +1,7 @@
+# 서버 위치: ~/haru/caddy/Caddyfile (compose가 /etc/caddy/Caddyfile로 마운트)
+# Cloudflare(Full Strict) → Caddy. 인증서는 Cloudflare Origin Cert(~/haru/caddy/certs → 컨테이너 /certs).
+# 인증서를 직접 지정하므로 Caddy가 ACME(Let's Encrypt) 발급을 시도하지 않는다.
+haru.careerpilot.kr {
+	tls /certs/origin.pem /certs/origin.key
+	reverse_proxy app:8080
+}

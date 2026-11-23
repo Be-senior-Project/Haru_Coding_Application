@@ -1,0 +1,78 @@
+# 운영 서버(EC2) 전용. deploy/ 폴더 구조 그대로 ~/haru/ 에 둔다:
+#   deploy/docker-compose.yml → ~/haru/docker-compose.yml
+#   deploy/caddy/Caddyfile    → ~/haru/caddy/Caddyfile   (인증서는 ~/haru/caddy/certs/origin.{pem,key})
+#   backend/init.sql          → ~/haru/db/init.sql
+# 백업 cron이 이 파일로 `docker compose exec db pg_dump`를 실행하므로 필수 변수가 비면 백업도 실패한다.
+#   Cloudflare(proxied, Full Strict) → caddy:443 (Origin Cert) → app:8080 → db:5432
+# 값은 같은 폴더의 .env(chmod 600)에서 읽는다. 변수 목록은 deploy/.env.example.
+# 필수 변수가 비어 있으면 compose 명령이 바로 실패한다(:? 문법).
+#
+# 주의: db 볼륨(pgdata)은 데이터 원본이다. `docker compose down -v` 금지.
+# 배포(GitHub Actions deploy.yml)는 `docker compose pull app && docker compose up -d app`만 실행한다.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/certs:/certs:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging: *default-logging
+
+  app:
+    image: ghcr.io/be-senior-project/haru-backend:${APP_TAG:-latest}
+    restart: unless-stopped
+    # 포트를 호스트에 노출하지 않음. caddy가 내부 네트워크로 app:8080에 접속.
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME:?DB_NAME is required}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:?DB_USER is required}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      Haru_Coding_backend_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY is required}
+      ENCRYPTION_SECRET_KEY: ${ENCRYPTION_SECRET_KEY:?ENCRYPTION_SECRET_KEY is required}
+      SEED_AUTOLOAD: ${SEED_AUTOLOAD:-true}
+      SPRING_JPA_SHOW_SQL: "false"
+      # 컨테이너 기본은 UTC. "오늘" 기준(오늘의 목표·연속 학습)이 오전 9시에 바뀌지 않도록 KST 고정.
+      TZ: Asia/Seoul
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 1500m
+    logging: *default-logging
+
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:?DB_NAME is required}
+      POSTGRES_USER: ${DB_USER:?DB_USER is required}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    # 호스트에서만 접근(백업 스크립트 등). 외부에는 열지 않음.
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # 볼륨이 비어 있을 때 1회만 실행됨 (backend/init.sql 복사본)
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

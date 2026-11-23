@@ -1,0 +1,17 @@
+# 비밀값
+.env
+.env.*
+
+# VCS / 빌드 산출물 / IDE
+.git
+.gradle
+build
+bin
+out
+.idea
+*.iml
+.vscode
+node_modules
+
+# 이미지 빌드에 필요 없는 파일
+docker-compose.yml

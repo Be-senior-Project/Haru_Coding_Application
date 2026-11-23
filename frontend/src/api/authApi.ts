@@ -1,7 +1,7 @@
-import {API_BASE_URL as BASE_URL} from './config';
+import {API_BASE_URL} from './config';
 
 async function post<T>(path: string, body: object): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(body),
@@ -57,7 +57,7 @@ export function refreshAccessToken(refreshToken: string) {
  * 그 값을 가진 쪽은 계속 액세스 토큰을 재발급받을 수 있다.
  */
 export async function logout(accessToken: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}/api/auth/logout`, {
+  const res = await fetch(`${API_BASE_URL}/api/auth/logout`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
